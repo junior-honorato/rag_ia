@@ -16,12 +16,18 @@ if not os.environ.get("GEMINI_API_KEY"):
 
 def process_repository():
     repo_dir = "repositorio"
-    file_name = "doc_fonte.pdf"
-    file_path = os.path.join(repo_dir, file_name)
+    if not os.path.exists(repo_dir):
+        os.makedirs(repo_dir)
+        
+    pdf_files = [f for f in os.listdir(repo_dir) if f.lower().endswith('.pdf')]
     
-    if not os.path.exists(file_path):
-        print(f"Erro: Arquivo {file_path} não encontrado no repositorio!")
+    if not pdf_files:
+        print(f"Erro: Nenhum arquivo PDF encontrado na pasta '{repo_dir}'!")
         return
+        
+    file_name = pdf_files[0]
+    file_path = os.path.join(repo_dir, file_name)
+    print(f"Iniciando treinamento com o arquivo: {file_name}")
 
     print("1. Limpando base de dados vetorial antiga (Reset ChromaDB)...")
     if os.path.exists("chroma_db"):
@@ -71,7 +77,7 @@ def process_repository():
         
     info = {
         "file_name": file_name,
-        "original_name": "CG individual.pdf",
+        "original_name": file_name,
         "summary": resumo,
         "chunk_count": len(chunks)
     }
