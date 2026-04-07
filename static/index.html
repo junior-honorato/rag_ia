@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seguradora RAG | Especialista Restrito</title>
+    <title>Seguradora | Especialista Restrito</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -14,13 +14,13 @@
 
     
     <header class="hero">
-        <h1>Seguradora RAG <span class="badge">Especialista</span></h1>
+        <h1>Seguradora <span class="badge">Especialista</span></h1>
         <p>Buscador Vetorial restrito à Regras Corporativas Específicas</p>
     </header>
 
     <main class="container">
         <!-- Esquerda: Informação do Documento Mestre -->
-        <section class="glass-panel add-knowledge" style="display:flex; flex-direction:column; justify-content:center;">
+        <section class="glass-panel add-knowledge">
             <h2><i class="icon">📄</i> Fonte de Verdade</h2>
             <div id="docLoader" style="text-align:center; padding: 2rem;">
                 <span class="loading-spinner" style="border-top-color:var(--primary)"></span><br><br>Sincronizando com o Repositório...
@@ -30,7 +30,7 @@
                 <div class="info-metric">Fatiado em: <strong id="docChunks" style="color:var(--primary-glow)">0</strong> fragmentos matemáticos</div>
                 <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;">
                 <h3 style="font-size: 1.1rem; margin-bottom:0.5rem; color:var(--text-main);">Visão Geral (via Gemini)</h3>
-                <p id="docSummary" style="font-size: 0.95rem; line-height:1.6; color:var(--text-muted);">
+                <p id="docSummary">
                     Resumo detalhado aparecerá aqui.
                 </p>
             </div>

@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await res.json();
         
         document.getElementById('docLoader').style.display = 'none';
-        document.getElementById('docContent').style.display = 'block';
+        document.getElementById('docContent').style.display = 'flex';
         
         document.getElementById('docTitle').textContent = `📋 ${data.file_name}`;
         document.getElementById('docChunks').textContent = data.chunk_count;

@@ -48,7 +48,7 @@ body {
     vertical-align: middle; -webkit-text-fill-color: white;
 }
 
-.container { display: flex; gap: 2rem; width: 100%; max-width: 1500px; padding: 0 2rem 2rem; z-index: 10; align-items: stretch; flex: 1; min-height: 0; }
+.container { display: flex; gap: 2rem; width: 100%; max-width: none; padding: 0 2rem 2rem; z-index: 10; align-items: stretch; flex: 1; min-height: 0; }
 
 @media (max-width: 992px) { 
     body { height: auto; overflow: visible; overflow-x: hidden; }
@@ -89,9 +89,27 @@ p { margin-bottom: 1.5rem; color: var(--text-muted); }
     color: var(--text-muted);
 }
 
-.add-knowledge { flex: 1.2; overflow-y: auto; padding-right: 10px; }
-.add-knowledge::-webkit-scrollbar { width: 6px; }
-.add-knowledge::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+.add-knowledge { flex: 1.2; }
+
+#docContent {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+#docSummary {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding-right: 12px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+    text-align: justify;
+}
+#docSummary::-webkit-scrollbar { width: 6px; }
+#docSummary::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
 
 /* CHAT UX */
 .chat-interface { flex: 2.8; display: flex; flex-direction: column; padding: 1.5rem 2rem;}
