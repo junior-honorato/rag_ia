@@ -1,15 +1,13 @@
 import os
-import uuid
-import shutil
-from typing import Optional
-from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import json
+import asyncio
+from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from dotenv import load_dotenv
 from google import genai
-from google.genai import types
 
 from extract_embeddings import get_embedding
 from chroma_client import ChromaManager
@@ -19,7 +17,7 @@ load_dotenv()
 if not os.environ.get("GEMINI_API_KEY"):
     raise Exception("ERRO: Preencha GEMINI_API_KEY no arquivo .env")
 
-app = FastAPI(title="Base Multimodal RAG Chat")
+app = FastAPI(title="Agente Especialista Restrito")
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,101 +33,73 @@ db = ChromaManager()
 class ChatRequest(BaseModel):
     query: str
 
-@app.post("/api/ingest")
-async def ingest_document(
-    text: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None)
-):
-    try:
-        vector = None
-        metadata = {}
-        
-        if file and file.filename:
-            temp_path = f"temp_{uuid.uuid4().hex}_{file.filename}"
-            with open(temp_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-                
-            try:
-                # 1. Faz Upload do PDF/Imagem diretamente na Nuvem do Gemini para conversar com ele depois
-                gemini_file = genai_client.files.upload(file=temp_path)
-                
-                # 2. Gera o Vetor Matemático localmente
-                vector = get_embedding(genai_client, file_path=temp_path)
-                
-                # 3. Salva a referência da Nuvem do Google dentro do nosso Banco Local (Mágica!)
-                metadata = {
-                    "tipo": "arquivo", 
-                    "nome_arquivo": file.filename,
-                    "gemini_file_name": gemini_file.name
-                }
-            finally:
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-        elif text and text.strip():
-            vector = get_embedding(genai_client, text=text)
-            metadata = {"tipo": "texto", "conteudo": text[:100] + "..." if len(text) > 100 else text, "full_text": text}
-        else:
-            raise HTTPException(status_code=400, detail="Forneça um texto ou um arquivo válido.")
-            
-        vector_id = f"doc_{uuid.uuid4().hex[:8]}"
-        db.upsert_vector(vector_id, vector, metadata)
-        
-        return {"status": "success", "id": vector_id, "message": "Indexado com sucesso!"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/doc_info")
+def get_doc_info():
+    info_path = os.path.join("repositorio", "info.json")
+    if os.path.exists(info_path):
+        with open(info_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {
+        "file_name": "Base de Dados Desconectada",
+        "original_name": "Arquivo Ausente",
+        "summary": "Nenhum arquivo pré-processado encontrado no repositório. O administrador precisará rodar o py init_repo.py no servidor.",
+        "chunk_count": 0
+    }
 
 @app.post("/api/chat")
 async def chat_agent(req: ChatRequest):
-    try:
-        if not req.query.strip():
-            return {"response": ""}
-            
-        # 1. Recuperar contexto do Banco de Dados Vetorial Local
-        vector = get_embedding(genai_client, text=req.query)
-        resultados = db.search_similar(vector, top_k=2) # Pega os 2 mais relevantes
-        
-        matches = resultados.get("matches", [])
-        
-        # 2. Construir Prompt do Agente Injetando os Documentos Recuperados
-        chat_contents = []
-        
-        # Inserindo RAG
-        context_description = ""
-        for m in matches:
-            meta = m.get("metadata", {})
-            if meta.get("tipo") == "arquivo" and "gemini_file_name" in meta:
-                # Resgata o Objeto do Arquivo original pelo SDK da Nuvem do Google!
-                cloud_file = genai_client.files.get(name=meta["gemini_file_name"])
-                chat_contents.append(cloud_file)
-                context_description += f"\n- Arquivo Anexado: {meta['nome_arquivo']}"
-            elif meta.get("tipo") == "texto" and "full_text" in meta:
-                chat_contents.append(meta["full_text"])
-                context_description += f"\n- Texto Anexado."
+    max_retries = 3
+    base_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            if not req.query.strip():
+                return {"response": ""}
                 
-        # Prompt Mestre
-        system_prompt = f"""
-Você é o "Nexus", um assistente de inteligência artificial de elite corporativa simpático e direto.
-Abaixo você recebeu um ou mais documentos resgatados criptograficamente. Podem ser textos ou Arquivos PDF/Imagens.
-Use ESTRITAMENTE o conhecimento destes arquivos para responder à pergunta do usuário. 
-Se você não souber a resposta baseada neles, seja honesto.
-Base resgatada:{context_description}
+            # Pesquisa os 7 chunks (fatias do LangChain) mais relevantes
+            vector = get_embedding(genai_client, text=req.query)
+            resultados = db.search_similar(vector, top_k=7)
+            
+            matches = resultados.get("matches", [])
+            
+            chat_contents = []
+            context_description = ""
+            
+            for m in matches:
+                meta = m.get("metadata", {})
+                if meta.get("tipo") == "chunk" and "conteudo" in meta:
+                    context_description += f"\n\n[Trecho do Documento {meta.get('original_file')}]:\n{meta['conteudo']}"
+                    
+            system_prompt = f"""
+Você é o "Nexus", um assistente corporativo de elite.
+Você foi treinado em SOMENTE 1 documento (A nossa Base de Verdade Exclusiva).
+Seu objetivo é responder à pergunta do Usuário consultando ESTRITAMENTE os trechos fatiados desse PDF abaixo.
+Não traga nenhum conhecimento do seu treinamento se não estiver no documento!
+Se os trechos não abordarem o tema, responda que essa informação foge do escopo do documento estudado.
+
+TRECHOS RECUPERADOS:
+{context_description}
 
 Pergunta do Usuário: {req.query}
 """
-        chat_contents.append(system_prompt)
-        
-        # 3. Executamos o Chatbot usando Flash (Leitura super-rápida de PDFs)
-        response = genai_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=chat_contents
-        )
-        
-        return {
-            "response": response.text,
-            "matches": matches
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            chat_contents.append(system_prompt)
+            
+            response = genai_client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=chat_contents
+            )
+            
+            return {
+                "response": response.text,
+                "matches": matches
+            }
+        except Exception as e:
+            error_str = str(e)
+            # Retentar se for erro 503 (Unavailable) ou 429 (Too Many Requests)
+            if attempt < max_retries - 1 and ("503" in error_str or "429" in error_str):
+                await asyncio.sleep(base_delay * (2 ** attempt)) # Espera 2s, depois 4s... e tenta de novo
+                continue
+            raise HTTPException(status_code=500, detail=error_str)
 
 os.makedirs("static", exist_ok=True)
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

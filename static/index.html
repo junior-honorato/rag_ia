@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus RAG | Multimodal Intelligence</title>
+    <title>Nexus RAG | Especialista Restrito</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -14,47 +14,41 @@
     <div class="blob-c blob-2"></div>
     
     <header class="hero">
-        <h1>Nexus RAG <span class="badge">Agente ChatBot</span></h1>
-        <p>Buscador Vetorial de Inteligência Artificial usando Gemini e ChromaDB</p>
+        <h1>Nexus RAG <span class="badge">Especialista</span></h1>
+        <p>Buscador Vetorial restrito à Regras Corporativas Específicas</p>
     </header>
 
     <main class="container">
-        <!-- Esquerda: Upload -->
-        <section class="glass-panel add-knowledge">
-            <h2><i class="icon">✨</i> Adicionar Base de Dados</h2>
-            <p>Faça upload de textos ou PDFs blindados para gerar contexto ao agente.</p>
-            
-            <form id="ingestForm">
-                <div class="form-group">
-                    <label for="textInput">Ou cole um texto:</label>
-                    <textarea id="textInput" name="text" placeholder="Cole regras manuais ou base livre..." rows="4"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="fileInput" class="file-label">
-                        <span id="fileName">📁 Anexar um arquivo</span>
-                        <input type="file" id="fileInput" name="file" accept="image/*, application/pdf">
-                    </label>
-                </div>
-                
-                <button type="submit" id="btnIngest" class="btn-primary">Enviar à Nuvem (Vetorizar)</button>
-            </form>
-            <div id="ingestResult" class="feedback"></div>
+        <!-- Esquerda: Informação do Documento Mestre -->
+        <section class="glass-panel add-knowledge" style="display:flex; flex-direction:column; justify-content:center;">
+            <h2><i class="icon">📄</i> Fonte de Verdade</h2>
+            <div id="docLoader" style="text-align:center; padding: 2rem;">
+                <span class="loading-spinner" style="border-top-color:var(--primary)"></span><br><br>Sincronizando com o Repositório...
+            </div>
+            <div id="docContent" style="display:none; text-align: left;">
+                <div class="file-badge" id="docTitle">Nome do Arquivo.pdf</div>
+                <div class="info-metric">Fatiado em: <strong id="docChunks" style="color:var(--primary-glow)">0</strong> fragmentos matemáticos</div>
+                <hr style="border:none; border-top:1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;">
+                <h3 style="font-size: 1.1rem; margin-bottom:0.5rem; color:var(--text-main);">Visão Geral (via Gemini)</h3>
+                <p id="docSummary" style="font-size: 0.95rem; line-height:1.6; color:var(--text-muted);">
+                    Resumo detalhado aparecerá aqui.
+                </p>
+            </div>
         </section>
 
-        <!-- Direita: Chat Interface -->
+        <!-- Direita: Chat Interface Restrito -->
         <section class="glass-panel chat-interface">
-            <h2 style="margin-bottom: 0"><i class="icon">🤖</i> Chat do Nexus</h2>
-            <p style="font-size: 0.85rem; color: var(--primary-glow)">Assistente de elite instruído pela sua base no banco vetorial.</p>
+            <h2 style="margin-bottom: 0"><i class="icon">🤖</i> Entrevistar Documento</h2>
+            <p style="font-size: 0.85rem; color: var(--primary-glow)">Assistente de elite instruído apenas pelas regras ao lado.</p>
             
             <div class="chat-box" id="chatBox">
                 <div class="message bot">
-                    Olá! Faça o upload de um PDF na aba Ingestão ali da esquerda e pode me bombardear de perguntas sobre ele. 🚀
+                    Olá! O meu cérebro está travado nas regras do conteúdo ao lado. Faça perguntas e eu cruzarei os dados matemáticos (RAG) para te responder sem viés.
                 </div>
             </div>
 
             <form id="chatForm" class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="Mande uma pergunta..." required autocomplete="off">
+                <input type="text" id="chatInput" placeholder="Faça uma pergunta restrita sobre o tema..." required autocomplete="off">
                 <button type="submit" id="btnChat" title="Enviar">➤</button>
             </form>
         </section>
