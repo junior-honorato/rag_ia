@@ -99,6 +99,10 @@ Pergunta do Usuário: {req.query}
             if attempt < max_retries - 1 and ("503" in error_str or "429" in error_str):
                 await asyncio.sleep(base_delay * (2 ** attempt)) # Espera 2s, depois 4s... e tenta de novo
                 continue
+            
+            if "429" in error_str:
+                raise HTTPException(status_code=429, detail="LIMITE_DE_TOKENS")
+                
             raise HTTPException(status_code=500, detail=error_str)
 
 os.makedirs("static", exist_ok=True)

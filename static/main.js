@@ -66,7 +66,12 @@ chatForm.addEventListener('submit', async (e) => {
         const data = await res.json();
         
         document.getElementById(typingId).remove();
-        if(!res.ok) throw new Error(data.detail || "Erro no Servidor RAG");
+        if(!res.ok) {
+            if (res.status === 429 || (data.detail && data.detail === "LIMITE_DE_TOKENS")) {
+                throw new Error("⚠️ O limite da API foi atingido (Falta de tokens/Quota excedida). O serviço poderá ficar temporariamente lento ou interrompido. Por favor, aguarde alguns minutos e tente novamente.");
+            }
+            throw new Error(data.detail || "Erro no Servidor RAG");
+        }
         
         appendMessage('bot', data.response || "Vazio.");
         
