@@ -96,128 +96,165 @@ chatForm.addEventListener('submit', async (e) => {
     chatInput.value = '';
     btnChat.disabled = true;
     
-    const typingId = "typing_" + Date.now();
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'message bot';
-    typingDiv.id = typingId;
-    typingDiv.innerHTML = '<span class="loading-spinner" style="width:12px; height:12px; border-width:2px; padding:0; border-top-color:var(--primary); vertical-align:-2px"></span> Fatiando conhecimento...';
-    chatBox.appendChild(typingDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    const baseTypingHtml = '<span class="loading-spinner" style="width:12px; height:12px; border-width:2px; padding:0; border-top-color:var(--primary); vertical-align:-2px"></span> ';
     
-    try {
-        const res = await fetch('/api/chat', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({query, history: chatHistory})
-        });
-        document.getElementById(typingId).remove();
-        if(!res.ok) {
-            let errorDetail = "Erro no Servidor RAG";
-            try {
-                const errData = await res.json();
-                errorDetail = errData.detail || errorDetail;
-            } catch(e) {}
-            if (res.status === 429 || errorDetail === "LIMITE_DE_TOKENS") {
-                throw new Error("⚠️ O limite da API foi atingido (Falta de tokens/Quota excedida). O serviço poderá ficar temporariamente lento ou interrompido. Por favor, aguarde alguns minutos e tente novamente.");
-            }
-            if (res.status === 503 || errorDetail.includes("503") || errorDetail.includes("UNAVAILABLE") || errorDetail.includes("high demand")) {
-                throw new Error("⚠️ Ops! Nossos servidores (Google Gemini) estão sob altíssima demanda no momento. Essa indisponibilidade é temporária. Por favor, aguarde alguns segundos e tente perguntar novamente!");
-            }
-            throw new Error(errorDetail);
+    let maxRetries = 3;
+    let attempt = 0;
+    let success = false;
+    
+    while(attempt < maxRetries && !success) {
+        attempt++;
+        
+        const typingId = "typing_" + Date.now() + "_" + attempt;
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'message bot';
+        typingDiv.id = typingId;
+        
+        if (attempt === 1) {
+            typingDiv.innerHTML = baseTypingHtml + 'Fatiando conhecimento...';
+        } else {
+            typingDiv.innerHTML = baseTypingHtml + `Oscilação detectada. Tentando novamente (${attempt}/${maxRetries})...`;
         }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let fullResponse = "";
-        let buffer = "";
-        let matches = [];
         
-        const botMsgDiv = document.createElement('div');
-        botMsgDiv.className = `message bot`;
-        chatBox.appendChild(botMsgDiv);
+        chatBox.appendChild(typingDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
         
-        const renderText = (text) => {
-            let formattedText = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-            formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
-            formattedText = formattedText.replace(/\n\n/g, "<br><br>");
-            formattedText = formattedText.replace(/\n/g, "<br>");
-            return formattedText;
-        };
+        let botMsgDiv = null;
+        
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query, history: chatHistory})
+            });
+            
+            document.getElementById(typingId).remove();
+            
+            if(!res.ok) {
+                let errorDetail = "Erro no Servidor RAG";
+                try {
+                    const errData = await res.json();
+                    errorDetail = errData.detail || errorDetail;
+                } catch(e) {}
+                if (res.status === 429 || errorDetail === "LIMITE_DE_TOKENS") {
+                    throw new Error("⚠️ O limite da API Gemini foi atingido (Falta de tokens/Quota excedida).");
+                }
+                if (res.status === 503 || errorDetail.includes("503") || errorDetail.includes("UNAVAILABLE") || errorDetail.includes("high demand")) {
+                    throw new Error("⚠️ Ops! Nossos servidores (Google Gemini) estão sob altíssima demanda.");
+                }
+                throw new Error(errorDetail);
+            }
 
-        while(true) {
-            const {done, value} = await reader.read();
-            if (done) break;
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let fullResponse = "";
+            let buffer = "";
+            let matches = [];
             
-            buffer += decoder.decode(value, {stream: true});
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // Mantém o pedaço incompleto para o próximo loop
+            botMsgDiv = document.createElement('div');
+            botMsgDiv.className = `message bot`;
+            chatBox.appendChild(botMsgDiv);
             
-            for(const line of lines) {
-                if(!line.trim()) continue;
-                const parsed = JSON.parse(line);
-                if(parsed.type === "chunk") {
-                    fullResponse += parsed.text;
-                    botMsgDiv.innerHTML = renderText(fullResponse);
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                } else if (parsed.type === "matches") {
-                    matches = parsed.matches;
-                } else if (parsed.type === "error") {
-                    let errStr = parsed.detail;
-                    if (errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("high demand")) {
-                        errStr = "⚠️ Ops! Nossos servidores (Google Gemini) estão sob altíssima demanda no momento. Essa indisponibilidade é temporária. Por favor, aguarde alguns segundos e tente perguntar novamente!";
+            const renderText = (text) => {
+                let formattedText = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+                formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
+                formattedText = formattedText.replace(/\n\n/g, "<br><br>");
+                formattedText = formattedText.replace(/\n/g, "<br>");
+                return formattedText;
+            };
+
+            while(true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Mantém o pedaço incompleto para o próximo loop
+                
+                for(const line of lines) {
+                    if(!line.trim()) continue;
+                    
+                    let parsed;
+                    try {
+                        parsed = JSON.parse(line);
+                    } catch(e) {
+                        console.warn("Aviso: fragmento JSON corrompido ou cortado pela rede ignorado:", line);
+                        continue;
                     }
-                    throw new Error(errStr);
+
+                    if(parsed.type === "chunk") {
+                        fullResponse += parsed.text;
+                        botMsgDiv.innerHTML = renderText(fullResponse);
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    } else if (parsed.type === "matches") {
+                        matches = parsed.matches;
+                    } else if (parsed.type === "error") {
+                        let errStr = parsed.detail;
+                        if (errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("high demand")) {
+                            errStr = "⚠️ Ops! Nossos servidores (Google Gemini) estão sob altíssima demanda.";
+                        }
+                        throw new Error(errStr);
+                    }
                 }
             }
-        }
-        
-        if(!fullResponse) {
-            fullResponse = "Vazio.";
-        }
-        
-        let finalHtml = renderText(fullResponse);
-        if (matches && matches.length > 0) {
-            let sourcesHtml = `<div class="sources-list">`;
-            for(let m of matches) {
-                const meta = m.metadata || {};
-                const titulo = meta.original_file || "Documento";
-                const score = (m.score * 100).toFixed(1) + "%";
-                const texto = meta.conteudo || "Sem texto armazenado";
-                sourcesHtml += `
-                    <div class="source-card">
-                        <div class="source-card-title"><span>📄 ${titulo}</span><span class="source-score">Ref: ${score}</span></div>
-                        <em>"${texto}"</em>
+            
+            if(!fullResponse) {
+                fullResponse = "Vazio.";
+            }
+            
+            let finalHtml = renderText(fullResponse);
+            if (matches && matches.length > 0) {
+                let sourcesHtml = `<div class="sources-list">`;
+                for(let m of matches) {
+                    const meta = m.metadata || {};
+                    const titulo = meta.original_file || "Documento";
+                    const score = (m.score * 100).toFixed(1) + "%";
+                    const texto = meta.conteudo || "Sem texto armazenado";
+                    sourcesHtml += `
+                        <div class="source-card">
+                            <div class="source-card-title"><span>📄 ${titulo}</span><span class="source-score">Ref: ${score}</span></div>
+                            <em>"${texto}"</em>
+                        </div>
+                    `;
+                }
+                sourcesHtml += `</div>`;
+                finalHtml += `
+                    <div class="sources-container">
+                        <details>
+                            <summary>🔍 Ver Fontes Analisadas (${matches.length})</summary>
+                            ${sourcesHtml}
+                        </details>
                     </div>
                 `;
             }
-            sourcesHtml += `</div>`;
-            finalHtml += `
-                <div class="sources-container">
-                    <details>
-                        <summary>🔍 Ver Fontes Analisadas (${matches.length})</summary>
-                        ${sourcesHtml}
-                    </details>
-                </div>
-            `;
+            botMsgDiv.innerHTML = finalHtml;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            
+            // Atualiza a memória de conversação
+            chatHistory.push({role: 'user', content: query});
+            chatHistory.push({role: 'model', content: fullResponse});
+            
+            // Limita a memória aos últimos 10 turnos para evitar payloads pesados
+            if(chatHistory.length > 10) {
+                chatHistory = chatHistory.slice(chatHistory.length - 10);
+            }
+            
+            success = true;
+            
+        } catch (err) {
+            const typEl = document.getElementById(typingId);
+            if(typEl) typEl.remove();
+            if(botMsgDiv) botMsgDiv.remove(); // Limpa as mensagens incompletas da UI
+            
+            if (attempt >= maxRetries) {
+                appendMessage('bot', `<span style="color:#ef4444">Desculpe, ocorreu erro crítico após ${maxRetries} tentativas: ${err.message}</span>`);
+            } else {
+                // Aguarda 1.5 segundo silencioso antes de disparar o loop de tentativa novamente
+                await new Promise(r => setTimeout(r, 1500));
+            }
         }
-        botMsgDiv.innerHTML = finalHtml;
-        chatBox.scrollTop = chatBox.scrollHeight;
-        
-        // Atualiza a memória de conversação
-        chatHistory.push({role: 'user', content: query});
-        chatHistory.push({role: 'model', content: fullResponse});
-        
-        // Limita a memória aos últimos 10 turnos para evitar payloads pesados
-        if(chatHistory.length > 10) {
-            chatHistory = chatHistory.slice(chatHistory.length - 10);
-        }
-        
-    } catch (err) {
-        const typEl = document.getElementById(typingId);
-        if(typEl) typEl.remove();
-        appendMessage('bot', `<span style="color:#ef4444">Desculpe, ocorreu erro crítico: ${err.message}</span>`);
-    } finally {
-        btnChat.disabled = false;
-        chatInput.focus();
     }
+    
+    btnChat.disabled = false;
+    chatInput.focus();
 });

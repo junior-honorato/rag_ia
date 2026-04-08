@@ -100,10 +100,30 @@ TRECHOS RECUPERADOS (FONTES):
 """
             from google.genai import types
             
-            # Reconstrói as mensagens passadas do histórico
+            # Reconstrói o histórico tratando a rigidez obrigatória do Gemini (alternância user/model e início com user)
+            last_role = None
             for msg in req.history:
-                role = "user" if msg.get("role") == "user" else "model"
-                chat_contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
+                current_role = "user" if msg.get("role") == "user" else "model"
+                
+                # A primeira mensagem na history tem que ser sempre do Usuário
+                if not chat_contents and current_role == "model":
+                    continue
+                    
+                # Regra estrita: Histórico deve alternar obrigatoriamente
+                if current_role == last_role:
+                    # Concatena com a mensagem anterior da mesma role para evitar Crash 400 sem perder contexto
+                    if chat_contents:
+                        chat_contents[-1]["parts"][0]["text"] += "\n" + msg.get("content", "")
+                    continue
+                
+                chat_contents.append({"role": current_role, "parts": [{"text": msg.get("content", "")}]})
+                last_role = current_role
+                
+            # A pergunta atual que será inserida abaixo sempre tem a role "user"
+            # Se a última mensagem validada do histórico também for "user" (ex: falha de rede/modelo), juntamos ambas.
+            if chat_contents and chat_contents[-1]["role"] == "user":
+                prev_user_msg = chat_contents.pop()
+                req.query = prev_user_msg["parts"][0]["text"] + "\n\n" + req.query
             
             # Adiciona a pergunta atual
             chat_contents.append({"role": "user", "parts": [{"text": req.query}]})
