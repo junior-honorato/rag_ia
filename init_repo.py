@@ -56,8 +56,11 @@ def process_repository():
             if archived_file in summaries:
                 del summaries[archived_file]
             
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1200, chunk_overlap=200, length_function=len
+    parent_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=2000, chunk_overlap=300, length_function=len
+    )
+    child_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=400, chunk_overlap=50, length_function=len
     )
 
     for i, file_name in enumerate(pdf_files):
@@ -77,20 +80,31 @@ def process_repository():
         pages = loader.load()
         texto_completo = " ".join([page.page_content for page in pages])
         
-        chunks = text_splitter.split_text(texto_completo)
-        print(f"   ✂️ Fatiado em {len(chunks)} trechos. Injetando...")
+        parent_chunks = parent_splitter.split_text(texto_completo)
         
-        for idx, chunk in enumerate(chunks):
-            vector = get_embedding(genai_client, text=chunk)
-            metadata = {
-                "tipo": "chunk", 
-                "original_file": file_name,
-                "chunk_index": idx,
-                "conteudo": chunk
-            }
-            vector_id = f"v_chk_{uuid.uuid4().hex[:8]}"
-            db.upsert_vector(vector_id, vector, metadata)
+        total_children = 0
+        for p_idx, parent_chunk in enumerate(parent_chunks):
+            child_chunks = child_splitter.split_text(parent_chunk)
+            parent_id = f"p_{uuid.uuid4().hex[:8]}"
             
+            for c_idx, child_chunk in enumerate(child_chunks):
+                # Extrai apenas o embedding filhote (alta precisão local)
+                vector = get_embedding(genai_client, text=child_chunk)
+                
+                # Mas armazena o pai grandão nos medatados para injeção posterior
+                metadata = {
+                    "tipo": "child_chunk", 
+                    "original_file": file_name,
+                    "parent_id": parent_id,
+                    "parent_content": parent_chunk,
+                    "conteudo": child_chunk
+                }
+                vector_id = f"v_chk_{uuid.uuid4().hex[:8]}"
+                db.upsert_vector(vector_id, vector, metadata)
+                total_children += 1
+                
+        print(f"   ✂️ Fatiado em {len(parent_chunks)} blocos-Pai e {total_children} vetores-Filhos. Injetando...")
+        
         print("   🤖 Extraindo sinopse isolada...")
         resumo_prompt = f"Faça 1 parágrafo bem curto com um resumo profissional do que se trata este documento específico. Base-se nos seguintes trechos:\n{texto_completo[:4000]}"
         
@@ -114,7 +128,7 @@ def process_repository():
                     
         summaries[file_name] = {
             "summary": resumo,
-            "chunk_count": len(chunks)
+            "chunk_count": total_children
         }
         state[file_name] = current_hash
         

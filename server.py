@@ -74,18 +74,27 @@ async def chat_agent(req: ChatRequest):
             if not req.query.strip():
                 return {"response": ""}
                 
-            # Pesquisa os 7 chunks (fatias do LangChain) mais relevantes
+            # Pesquisa os 10 chunks filhos de altíssima precisão
             vector = get_embedding(genai_client, text=req.query)
-            resultados = db.search_similar(vector, top_k=7)
+            resultados = db.search_similar(vector, top_k=10)
             
             matches = resultados.get("matches", [])
             
             chat_contents = []
             context_description = ""
             
+            seen_parents = set()
             for m in matches:
                 meta = m.get("metadata", {})
-                if meta.get("tipo") == "chunk" and "conteudo" in meta:
+                
+                # Suporte à nova Arquitetura Pai-Filho (Hydrated RAG)
+                if meta.get("tipo") == "child_chunk" and meta.get("parent_id") not in seen_parents:
+                    seen_parents.add(meta.get("parent_id"))
+                    parent_text = meta.get('parent_content', 'Conteúdo Vazio')
+                    context_description += f"\n\n[Trecho Completo do Documento {meta.get('original_file')}]:\n{parent_text}"
+                
+                # Fallback de compatibilidade (para banco legado)
+                elif meta.get("tipo") == "chunk" and "conteudo" in meta:
                     context_description += f"\n\n[Trecho do Documento {meta.get('original_file')}]:\n{meta['conteudo']}"
                     
             system_prompt = f"""
