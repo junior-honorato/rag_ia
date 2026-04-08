@@ -2,6 +2,20 @@
 // LÓGICA DE INFO DO DOCUMENTO
 // =============================
 
+window.sendFeedback = async function(btnEl, q, r, v) {
+    const parent = btnEl.parentElement;
+    parent.innerHTML = `<span style="font-size: 0.8rem; color: var(--primary-glow)">✓ Obrigado pelo feedback! Registrado.</span>`;
+    try {
+        await fetch('/api/feedback', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: q, response: r, vote: v})
+        });
+    } catch(e) {
+        console.error("Erro ao salvar feedback", e);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const res = await fetch('/api/documents');
@@ -227,6 +241,21 @@ chatForm.addEventListener('submit', async (e) => {
                     </div>
                 `;
             }
+            
+            // Adiciona botões de Feedback na resposta
+            const currentQ = query.replace(/(['"])/g, "\\$1");
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = finalHtml;
+            const plainResponse = (tempDiv.innerText || "").substring(0, 120).replace(/(['"\n])/g, " ");
+            
+            finalHtml += `
+                <div class="feedback-actions">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Esta resposta local foi útil?</span>
+                    <button class="btn-feedback" onclick="sendFeedback(this, '${currentQ}', '${plainResponse}...', 1)">👍 Sim</button>
+                    <button class="btn-feedback" onclick="sendFeedback(this, '${currentQ}', '${plainResponse}...', -1)">👎 Não</button>
+                </div>
+            `;
+            
             botMsgDiv.innerHTML = finalHtml;
             chatBox.scrollTop = chatBox.scrollHeight;
             

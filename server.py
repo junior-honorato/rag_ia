@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import asyncio
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
@@ -39,6 +40,31 @@ class ChatRequest(BaseModel):
 class SummaryUpdateBlock(BaseModel):
     summary: str
 
+class FeedbackRequest(BaseModel):
+    query: str
+    response: str
+    vote: int
+
+@app.post("/api/feedback")
+def submit_feedback(payload: FeedbackRequest):
+    feedbacks_path = os.path.join("repositorio", "feedbacks.json")
+    feedbacks = []
+    if os.path.exists(feedbacks_path):
+        with open(feedbacks_path, "r", encoding="utf-8") as f:
+            feedbacks = json.load(f)
+            
+    feedbacks.append({
+        "timestamp": time.time(),
+        "query": payload.query,
+        "response": payload.response,
+        "vote": payload.vote
+    })
+            
+    with open(feedbacks_path, "w", encoding="utf-8") as f:
+        json.dump(feedbacks, f, ensure_ascii=False, indent=4)
+        
+    return {"status": "success"}
+
 @app.get("/api/documents")
 def get_documents_list():
     summaries_path = os.path.join("repositorio", "summaries.json")
@@ -76,6 +102,22 @@ async def chat_agent(req: ChatRequest):
                 
             # Pesquisa os 10 chunks filhos de altíssima precisão
             vector = get_embedding(genai_client, text=req.query)
+            
+            # --- START SEMANTIC CACHE ---
+            cached_answer = db.check_cache(vector, threshold=0.04) # 96% similarity
+            if cached_answer:
+                # Retorna a resposta engavetada instantaneamente
+                def cache_stream_generator():
+                    # matches pode conter flag de hit no cache
+                    yield json.dumps({"type": "matches", "matches": [{"metadata": {"original_file": "Semantic Cache Hit", "conteudo": "Resposta recuperada direto da memória do cache semântico economizando tokens."}, "score": 1.0}]}) + "\n"
+                    # Fatiar para simular a digitação rápida
+                    chunk_size = 40
+                    for i in range(0, len(cached_answer), chunk_size):
+                        yield json.dumps({"type": "chunk", "text": cached_answer[i:i+chunk_size]}) + "\n"
+                        time.sleep(0.015) 
+                return StreamingResponse(cache_stream_generator(), media_type="application/x-ndjson")
+            # --- END SEMANTIC CACHE ---
+            
             resultados = db.search_similar(vector, top_k=10)
             
             matches = resultados.get("matches", [])
@@ -148,18 +190,24 @@ TRECHOS RECUPERADOS (FONTES):
                 config=config
             )
             
-            def stream_generator():
+            def stream_generator(query_vector, query_text):
+                assembled_text = ""
                 try:
                     # Envia os metadados e citações primeiro
                     yield json.dumps({"type": "matches", "matches": matches}) + "\n"
                     # Itera enviando palavra por palavra
                     for chunk in response_stream:
+                        assembled_text += chunk.text
                         yield json.dumps({"type": "chunk", "text": chunk.text}) + "\n"
+                        
+                    # Finalizou com sucesso, grava a resposta no Semantic Cache para a próxima!
+                    db.save_to_cache(query_vector, assembled_text, query_text)
+                    
                 except Exception as stream_error:
                     error_str = str(stream_error)
                     yield json.dumps({"type": "error", "detail": error_str}) + "\n"
 
-            return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
+            return StreamingResponse(stream_generator(vector, req.query), media_type="application/x-ndjson")
 
         except Exception as e:
             error_str = str(e)

@@ -1,4 +1,5 @@
 import os
+import uuid
 import chromadb
 
 class ChromaManager:
@@ -7,6 +8,8 @@ class ChromaManager:
         self.client = chromadb.PersistentClient(path="./chroma_db")
         self.collection_name = "multimodal-rag-index"
         self.collection = None
+        self.cache_name = "semantic-cache"
+        self.cache_collection = None
 
     def ensure_index_exists(self, dimension=768):
         """Verifica ou Cria a coleção no ChromaDB."""
@@ -15,6 +18,41 @@ class ChromaManager:
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name,
             metadata={"hnsw:space": "cosine"}
+        )
+
+    def ensure_cache_exists(self):
+        """Prepara Coleção do Semantic Cache"""
+        if not self.cache_collection:
+            self.cache_collection = self.client.get_or_create_collection(
+                name=self.cache_name,
+                metadata={"hnsw:space": "cosine"}
+            )
+
+    def check_cache(self, query_vector, threshold=0.04):
+        """Verifica se há pergunta parecida (distância < 0.04 = >96% similaridade)"""
+        self.ensure_cache_exists()
+        try:
+            results = self.cache_collection.query(
+                query_embeddings=[query_vector],
+                n_results=1,
+                include=["metadatas", "distances"]
+            )
+            if results and results.get("ids") and len(results["ids"]) > 0 and len(results["ids"][0]) > 0:
+                dist = results["distances"][0][0]
+                if dist <= threshold:
+                    return results["metadatas"][0][0].get("answer_text")
+        except:
+            pass
+        return None
+
+    def save_to_cache(self, query_vector, answer_text, query_text):
+        """Salva a resposta para uso futuro"""
+        self.ensure_cache_exists()
+        vid = f"c_{uuid.uuid4().hex[:12]}"
+        self.cache_collection.upsert(
+            ids=[vid],
+            embeddings=[query_vector],
+            metadatas=[{"answer_text": answer_text, "query": query_text}]
         )
 
     def upsert_vector(self, vector_id, vector_values, metadata=None):
