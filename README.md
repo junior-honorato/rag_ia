@@ -15,6 +15,31 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 - **Armazenamento Local Segregado**: Sem dependências de Pinecone/Nuvem externa para os arrays. Tudo fica no banco de dados local ChromaDB (`chroma_db/`), ideal para intranets!
 - **Robustez Tratada**: Hot-reload front-end com tratativas elegantes no balão de conversa quando a API do Google enfrenta picos de indisponibilidade (503/429).
 
+## Arquitetura e Fluxo de Dados
+
+```mermaid
+graph TD
+    subgraph "Processo de Ingestão (Offline)"
+        A[Documentos PDF] -->|Lidos pelo| B(init_repo.py)
+        B -->|Fatiamento e Hash MD5| C{ChromaManager}
+        B -->|Gera Resumo| D[(summaries.json)]
+        B -->|Pede Embeddings| E[API Gemini Embeddings]
+        E -->|Retorna Vetores| C
+        C -->|Armazena| F[(ChromaDB - Base Vetorial Local)]
+    end
+
+    subgraph "Processo de Consulta RAG (Online)"
+        G[Usuário / Web UI] -->|Pergunta| H(FastAPI - server.py)
+        H -->|Converte Pergunta em Vetor| I[API Gemini Embeddings]
+        I -->|Retorna Vetor| H
+        H -->|Busca Similaridade| F
+        F -->|Retorna Trechos Relevantes| H
+        H -->|Monta Prompt com Trechos| J[API Gemini Flash 2.5]
+        J -->|Resposta| H
+        H -->|Streaming da Resposta| G
+    end
+```
+
 ## Estrutura do Projeto
 
 * `server.py` — Código principal da API FastAPI (Backend). Responsável por receber o prompt, consultar o ChromaDB e chamar a API do Gemini.
