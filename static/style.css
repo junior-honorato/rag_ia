@@ -194,3 +194,52 @@ p { margin-bottom: 1.5rem; color: var(--text-muted); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .blob-c { position: absolute; width: 600px; height: 600px; background: radial-gradient(circle, rgba(0,174,157,0.15) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; top: -200px; left: -200px; z-index: 0; filter: blur(50px); }
+
+/* SOURCES ACCORDION */
+.sources-container {
+    margin-top: 1rem;
+    border-top: 1px dashed var(--glass-border);
+    padding-top: 0.8rem;
+}
+
+.sources-container details {
+    cursor: pointer;
+}
+
+.sources-container summary {
+    font-size: 0.85rem;
+    color: var(--primary);
+    font-weight: 600;
+    outline: none;
+    list-style: none;
+}
+.sources-container summary::-webkit-details-marker {
+  display: none;
+}
+
+.sources-list {
+    margin-top: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.source-card {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--glass-border);
+    border-left: 3px solid var(--primary);
+    border-radius: 6px;
+    padding: 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.source-card-title {
+    color: var(--text-main);
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    display: flex;
+    justify-content: space-between;
+}
+.source-score {
+    color: var(--primary-glow);
+}

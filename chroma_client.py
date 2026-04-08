@@ -29,7 +29,17 @@ class ChromaManager:
             embeddings=[vector_values],
             metadatas=[meta]
         )
-        print(f"[Upsert] Vetor ID '{vector_id}' armazenado localmente no ChromaDB!")
+
+    def delete_by_file(self, filename):
+        """Deleta fisicamente no banco ChromaDB todos os chunks que tenham essa origem."""
+        if not self.collection:
+            self.ensure_index_exists()
+            
+        try:    
+            self.collection.delete(where={"original_file": filename})
+            print(f"[🗑️  Delete] Vetores antigos de '{filename}' apagados DB.")
+        except Exception as e:
+            print(f"[Delete] Erro ao deletar '{filename}': {e}")
 
     def search_similar(self, query_vector, top_k=3):
         """Pesquisa vetores adjacentes e devolve formato de RAG."""

@@ -3,7 +3,7 @@ import json
 import asyncio
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -30,8 +30,11 @@ app.add_middleware(
 genai_client = genai.Client()
 db = ChromaManager()
 
+from typing import List, Dict, Any
+
 class ChatRequest(BaseModel):
     query: str
+    history: List[Dict[str, Any]] = []
 
 @app.get("/api/doc_info")
 def get_doc_info():
@@ -79,23 +82,44 @@ Se os trechos não abordarem o tema, responda que essa informação foge do esco
 
 TRECHOS RECUPERADOS:
 {context_description}
-
-Pergunta do Usuário: {req.query}
 """
-            chat_contents.append(system_prompt)
+            from google.genai import types
             
-            response = genai_client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=chat_contents
+            # Reconstrói as mensagens passadas do histórico
+            for msg in req.history:
+                role = "user" if msg.get("role") == "user" else "model"
+                chat_contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
+            
+            # Adiciona a pergunta atual
+            chat_contents.append({"role": "user", "parts": [{"text": req.query}]})
+            
+            # Configura as instruções do sistema
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
             )
             
-            return {
-                "response": response.text,
-                "matches": matches
-            }
+            response_stream = genai_client.models.generate_content_stream(
+                model='gemini-2.5-flash',
+                contents=chat_contents,
+                config=config
+            )
+            
+            def stream_generator():
+                try:
+                    # Envia os metadados e citações primeiro
+                    yield json.dumps({"type": "matches", "matches": matches}) + "\n"
+                    # Itera enviando palavra por palavra
+                    for chunk in response_stream:
+                        yield json.dumps({"type": "chunk", "text": chunk.text}) + "\n"
+                except Exception as stream_error:
+                    error_str = str(stream_error)
+                    yield json.dumps({"type": "error", "detail": error_str}) + "\n"
+
+            return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
+
         except Exception as e:
             error_str = str(e)
-            # Retentar se for erro 503 (Unavailable) ou 429 (Too Many Requests)
+            # Retentar se for erro 503 (Unavailable) ou 429 (Too Many Requests) - Isso pega os erros de inicialização.
             if attempt < max_retries - 1 and ("503" in error_str or "429" in error_str):
                 await asyncio.sleep(base_delay * (2 ** attempt)) # Espera 2s, depois 4s... e tenta de novo
                 continue

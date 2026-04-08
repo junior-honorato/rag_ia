@@ -6,10 +6,13 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 
 ## Principais Funcionalidades
 
-- **RAG Específico Corporativo**: A Inteligência Artificial (Nexus) responde perguntas exclusivamente com base no documento parametrizado e indexado, recusando-se a delírios ou a trazer conhecimentos de mundo irrelevantes.
-- **Armazenamento Local Segregado**: Sem dependências de vetores na nuvem ou Pinecone. Tudo fica no banco de dados local ChromaDB (`chroma_db/`), ideal para intranets!
-- **Feedback Elegante de Rede**: Hot-reload front-end pronto para uso, visual moderno e amigável para celulares, e tratamento em tempo real de filas, falta de tokens da API e indisponibilidade de requisição (`HTTP 429` e `503`).
-- **Setup Automatizado de Base (`init_repo.py`)**: Script inteligente que varre as pastas, fatia e insere todos os chunks no banco local, servindo de base de conhecimento global.
+- **RAG Específico Corporativo**: A Inteligência Artificial (Seguradora) responde perguntas exclusivamente com base no documento indexado, bloqueando "delírios" e alucinações.
+- **Respostas em Tempo Real (Streaming)**: As respostas são exibidas com o "efeito máquina de escrever", idêntico ao fluxo nativo do ChatGPT, sem necessidade de esperar todo o processamento.
+- **Memória de Conversa Per-Sessão**: O robô lembra das perguntas e respostas anteriores da mesma aba do navegador, permitindo a você aprofundar investigações sobre a conversa.
+- **Citações Dinâmicas Visuais**: Após entregar a resposta, você conta com um seletor visual na interface "Ver Fontes" para atestar fidedignamente qual parágrafo da base alimentou a IA.
+- **Sincronização Vetorial Incremental Inteligente**: O script `init_repo.py` analisa a "Identidade/Hash" MD5 dos múltiplos documentos na sua pasta e injeta apenas conteúdo que sofreu alteração, além de fazer Poda Automática dos excluídos.
+- **Armazenamento Local Segregado**: Sem dependências de Pinecone/Nuvem externa para os arrays. Tudo fica no banco de dados local ChromaDB (`chroma_db/`), ideal para intranets!
+- **Robustez Tratada**: Hot-reload front-end com tratativas elegantes no balão de conversa quando a API do Google enfrenta picos de indisponibilidade (503/429).
 
 ## Estrutura do Projeto
 
