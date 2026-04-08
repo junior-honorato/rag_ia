@@ -21,3 +21,6 @@ __pycache__/
 *.bak
 .temp*/
 temp_*
+
+# Runtime Data and Feedbacks
+repositorio/*.json
