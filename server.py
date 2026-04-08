@@ -90,6 +90,46 @@ def update_document_summary(filename: str, payload: SummaryUpdateBlock):
         return {"status": "success", "message": "Resumo atualizado."}
     return {"status": "error", "message": "Banco não encontrado"}, 404
 
+@app.post("/api/documents/{filename}/retry_summary")
+def retry_document_summary(filename: str):
+    # 1. Recuperar chunks de Contexto via ChromaDB
+    texto_contexto = db.get_parent_content_by_file(filename, max_chars=5000)
+    if not texto_contexto:
+        raise HTTPException(status_code=404, detail="Conteúdo do arquivo não encontrado no banco vetorial.")
+        
+    # 2. Enviar para LLM
+    resumo_prompt = f"Faça 1 parágrafo bem curto com um resumo profissional do que se trata este documento específico. Base-se nos seguintes trechos:\\n{texto_contexto}"
+    
+    try:
+        response = genai_client.models.generate_content(
+            model='gemini-2.5-flash', contents=resumo_prompt
+        )
+        resumo = response.text
+    except Exception as e:
+        error_str = str(e)
+        if "503" in error_str or "UNAVAILABLE" in error_str or "high demand" in error_str:
+            raise HTTPException(status_code=503, detail="Os servidores do Google Gemini estão com tráfego extremo no momento. Aguarde alguns instantes e clique novamente.")
+        elif "429" in error_str:
+            raise HTTPException(status_code=429, detail="A cota (Limites/Tokens) temporária da conta do Google Gemini foi excedida. Pise no freio e tente em breve.")
+        else:
+            raise HTTPException(status_code=500, detail="Falha inesperada de comunicação com a Nuvem. Tente mais tarde.")
+        
+    # 3. Atualizar o Summaries
+    summaries_path = os.path.join("repositorio", "summaries.json")
+    if os.path.exists(summaries_path):
+        with open(summaries_path, "r", encoding="utf-8") as f:
+            sums = json.load(f)
+            
+        if filename in sums:
+            sums[filename]["summary"] = resumo
+        else:
+            sums[filename] = {"summary": resumo, "chunk_count": 0}
+            
+        with open(summaries_path, "w", encoding="utf-8") as f:
+            json.dump(sums, f, ensure_ascii=False, indent=4)
+            
+    return {"status": "success", "summary": resumo}
+
 @app.post("/api/chat")
 async def chat_agent(req: ChatRequest):
     max_retries = 3

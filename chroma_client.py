@@ -105,3 +105,31 @@ class ChromaManager:
                 })
                 
         return {"matches": reformatted_matches}
+
+    def get_parent_content_by_file(self, filename, max_chars=5000):
+        """Busca conteúdos Pais para gerar resumos retroativos sem PyPDFLoader"""
+        if not self.collection:
+            self.ensure_index_exists()
+            
+        try:
+            results = self.collection.get(
+                where={"original_file": filename},
+                limit=30
+            )
+            
+            texto_montado = ""
+            unique_parents = set()
+            
+            if results and results.get("metadatas"):
+                for meta in results["metadatas"]:
+                    pid = meta.get("parent_id")
+                    if pid and pid not in unique_parents:
+                        unique_parents.add(pid)
+                        texto_montado += meta.get("parent_content", "") + " "
+                        if len(texto_montado) > max_chars:
+                            break
+                            
+            return texto_montado[:max_chars]
+        except Exception as e:
+            print(f"Erro ao obter parent_content: {e}")
+            return ""

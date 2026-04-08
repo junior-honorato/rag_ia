@@ -37,15 +37,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             const info = data[file];
             const div = document.createElement('div');
             div.style.marginBottom = '1.5rem';
+            let sumRaw = info.summary || "";
+            let retryBtn = "";
+            if (sumRaw.includes("Resumo temporariamente indisponível")) {
+                retryBtn = `<button onclick="retryPdfSummary('${file}')" style="background:none; border:none; color:var(--primary-glow); cursor:pointer; font-size:0.85rem; padding:0.2rem; margin-right: 0.5rem;">[🔄 Reenviar geração do resumo]</button>`;
+            }
+            
             div.innerHTML = `
                 <div class="file-badge" style="font-size:0.95rem; padding:0.5rem 1rem; margin-bottom:0.5rem;">📋 ${file}</div>
                 <div class="info-metric">Fatiado em: <strong style="color:var(--primary-glow)">${info.chunk_count}</strong> fragmentos matemáticos</div>
                 <h3 style="font-size: 1.05rem; margin: 1rem 0 0.5rem 0; color:var(--text-main); display:flex; justify-content:space-between; align-items:center;">
                     Visão Geral
-                    <button onclick="editSummary('${file}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.85rem; padding:0.2rem;">[✎ Editar]</button>
+                    <div>
+                        ${retryBtn}
+                        <button onclick="editSummary('${file}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.85rem; padding:0.2rem;">[✎ Editar]</button>
+                    </div>
                 </h3>
                 <p id="summary-${file}" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); text-align: justify;">
-                    ${info.summary.replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>")}
+                    ${sumRaw.replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>")}
                 </p>
                 <hr style="border:none; border-top:1px dashed rgba(255,255,255,0.1); margin-top: 1.5rem;">
             `;
@@ -73,8 +82,29 @@ window.editSummary = async function(filename) {
             currentEl.innerHTML = newSummary.trim().replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>");
         } catch(e) {
             alert('Falha ao gravar no backend.');
-            currentEl.innerHTML = defaultText.replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>");
         }
+    }
+}
+
+window.retryPdfSummary = async function(filename) {
+    const currentEl = document.getElementById(`summary-${filename}`);
+    currentEl.innerHTML = '<span style="color:var(--primary-glow)">⚙️ Acionando Inteligência Artificial na Nuvem...</span>';
+    
+    try {
+        const res = await fetch(`/api/documents/${filename}/retry_summary`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+            throw new Error(data.detail || "Falha HTTP");
+        }
+        
+        // Sucesso, regarrega a UI limpando os botões antigos recarregando os JSONs gerais
+        location.reload(); 
+        
+    } catch(e) {
+        currentEl.innerHTML = `<span style="color:#ef4444">⚠️ ${e.message}</span> <button onclick="retryPdfSummary('${filename}')" style="background:none; border:none; color:var(--primary-glow); cursor:pointer; font-size:0.85rem; padding:0.2rem; margin-left: 0.5rem;">[🔄 Tentar novamente]</button>`;
     }
 }
 
