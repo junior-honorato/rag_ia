@@ -4,20 +4,65 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const res = await fetch('/api/doc_info');
+        const res = await fetch('/api/documents');
         const data = await res.json();
         
         document.getElementById('docLoader').style.display = 'none';
-        document.getElementById('docContent').style.display = 'flex';
+        const docContent = document.getElementById('docContent');
+        docContent.style.display = 'flex';
+        docContent.style.flexDirection = 'column';
+        docContent.innerHTML = '';
         
-        document.getElementById('docTitle').textContent = `📋 ${data.file_name}`;
-        document.getElementById('docChunks').textContent = data.chunk_count;
-        document.getElementById('docSummary').innerHTML = data.summary.replace(/\n\n/g, "<br><br>");
-        
+        const files = Object.keys(data);
+        if(files.length === 0) {
+            docContent.innerHTML = '<p style="color:var(--text-muted)">Nenhum PDF encontrado na base de dados.</p>';
+            return;
+        }
+
+        for(const file of files) {
+            const info = data[file];
+            const div = document.createElement('div');
+            div.style.marginBottom = '1.5rem';
+            div.innerHTML = `
+                <div class="file-badge" style="font-size:0.95rem; padding:0.5rem 1rem; margin-bottom:0.5rem;">📋 ${file}</div>
+                <div class="info-metric">Fatiado em: <strong style="color:var(--primary-glow)">${info.chunk_count}</strong> fragmentos matemáticos</div>
+                <h3 style="font-size: 1.05rem; margin: 1rem 0 0.5rem 0; color:var(--text-main); display:flex; justify-content:space-between; align-items:center;">
+                    Visão Geral
+                    <button onclick="editSummary('${file}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.85rem; padding:0.2rem;">[✎ Editar]</button>
+                </h3>
+                <p id="summary-${file}" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); text-align: justify;">
+                    ${info.summary.replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>")}
+                </p>
+                <hr style="border:none; border-top:1px dashed rgba(255,255,255,0.1); margin-top: 1.5rem;">
+            `;
+            docContent.appendChild(div);
+        }
     } catch (err) {
-        document.getElementById('docLoader').innerHTML = `<span style="color:#ef4444">Falha ao buscar Repo: ${err.message}</span>`;
+        document.getElementById('docLoader').innerHTML = `<span style="color:#ef4444">Falha ao buscar Banco Vetorial: ${err.message}</span>`;
     }
 });
+
+window.editSummary = async function(filename) {
+    const currentEl = document.getElementById(`summary-${filename}`);
+    const defaultText = currentEl.innerText || currentEl.textContent;
+    const newSummary = prompt(`[CRUD] Editar o resumo mestre do documento '${filename}':`, defaultText);
+    
+    if (newSummary !== null && newSummary.trim() !== "") {
+        currentEl.innerHTML = '<span style="color:var(--primary-glow)">Gravando no servidor...</span>';
+        try {
+            const res = await fetch(`/api/documents/${filename}/summary`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ summary: newSummary.trim() })
+            });
+            if (!res.ok) throw new Error("Falha HTTP");
+            currentEl.innerHTML = newSummary.trim().replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>");
+        } catch(e) {
+            alert('Falha ao gravar no backend.');
+            currentEl.innerHTML = defaultText.replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>");
+        }
+    }
+}
 
 // =============================
 // CHAT BOT LÓGICA RAG

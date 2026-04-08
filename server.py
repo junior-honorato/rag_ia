@@ -36,18 +36,33 @@ class ChatRequest(BaseModel):
     query: str
     history: List[Dict[str, Any]] = []
 
-@app.get("/api/doc_info")
-def get_doc_info():
-    info_path = os.path.join("repositorio", "info.json")
-    if os.path.exists(info_path):
-        with open(info_path, "r", encoding="utf-8") as f:
+class SummaryUpdateBlock(BaseModel):
+    summary: str
+
+@app.get("/api/documents")
+def get_documents_list():
+    summaries_path = os.path.join("repositorio", "summaries.json")
+    if os.path.exists(summaries_path):
+        with open(summaries_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {
-        "file_name": "Base de Dados Desconectada",
-        "original_name": "Arquivo Ausente",
-        "summary": "Nenhum arquivo pré-processado encontrado no repositório. O administrador precisará rodar o py init_repo.py no servidor.",
-        "chunk_count": 0
-    }
+    return {}
+
+@app.put("/api/documents/{filename}/summary")
+def update_document_summary(filename: str, payload: SummaryUpdateBlock):
+    summaries_path = os.path.join("repositorio", "summaries.json")
+    if os.path.exists(summaries_path):
+        with open(summaries_path, "r", encoding="utf-8") as f:
+            sums = json.load(f)
+        
+        if filename in sums:
+            sums[filename]["summary"] = payload.summary
+        else:
+            sums[filename] = {"summary": payload.summary, "chunk_count": 0}
+            
+        with open(summaries_path, "w", encoding="utf-8") as f:
+            json.dump(sums, f, ensure_ascii=False, indent=4)
+        return {"status": "success", "message": "Resumo atualizado."}
+    return {"status": "error", "message": "Banco não encontrado"}, 404
 
 @app.post("/api/chat")
 async def chat_agent(req: ChatRequest):
