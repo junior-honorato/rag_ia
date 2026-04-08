@@ -276,7 +276,9 @@ chatForm.addEventListener('submit', async (e) => {
             if(botMsgDiv) botMsgDiv.remove(); // Limpa as mensagens incompletas da UI
             
             if (attempt >= maxRetries) {
-                appendMessage('bot', `<span style="color:#ef4444">Desculpe, ocorreu erro crítico após ${maxRetries} tentativas: ${err.message}</span>`);
+                const currentQ = query.replace(/(['"])/g, "\\$1");
+                const retryBtnStr = `<br><br><button class="btn-feedback" style="border-color:#ef4444; color:#ef4444;" onclick="retryLastQuery(this, '${currentQ}')">🔄 Tentar Reenviar a Pergunta</button>`;
+                appendMessage('bot', `<span style="color:#ef4444">Desculpe, ocorreu erro crítico após ${maxRetries} tentativas: ${err.message}</span>${retryBtnStr}`);
             } else {
                 // Aguarda 1.5 segundo silencioso antes de disparar o loop de tentativa novamente
                 await new Promise(r => setTimeout(r, 1500));
@@ -287,3 +289,12 @@ chatForm.addEventListener('submit', async (e) => {
     btnChat.disabled = false;
     chatInput.focus();
 });
+
+window.retryLastQuery = function(btnEl, q) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = "⏳ Reenviando...";
+    const chatInput = document.getElementById('chatInput');
+    const btnChat = document.getElementById('btnChat');
+    chatInput.value = q;
+    btnChat.click();
+}
