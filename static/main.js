@@ -45,12 +45,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             div.innerHTML = `
                 <div class="file-badge" style="font-size:0.95rem; padding:0.5rem 1rem; margin-bottom:0.5rem;">📋 ${file}</div>
-                <div class="info-metric">Fatiado em: <strong style="color:var(--primary-glow)">${info.chunk_count}</strong> fragmentos matemáticos</div>
+
                 <h3 style="font-size: 1.05rem; margin: 1rem 0 0.5rem 0; color:var(--text-main); display:flex; justify-content:space-between; align-items:center;">
                     Visão Geral
                     <div>
                         ${retryBtn}
-                        <button onclick="editSummary('${file}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:0.85rem; padding:0.2rem;">[✎ Editar]</button>
+
                     </div>
                 </h3>
                 <p id="summary-${file}" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); text-align: justify;">

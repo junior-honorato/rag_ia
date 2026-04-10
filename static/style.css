@@ -84,10 +84,7 @@ p { margin-bottom: 1.5rem; color: var(--text-muted); }
     box-shadow: 0 0 15px rgba(0, 174, 157, 0.2);
 }
 
-.info-metric {
-    font-size: 0.95rem;
-    color: var(--text-muted);
-}
+
 
 .add-knowledge { flex: 1.2; }
 
