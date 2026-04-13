@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seguradora | Analytics Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=2">
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary-glow);
+            margin-top: 0.5rem;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+        }
+        .chart-wrapper {
+            padding: 1.5rem;
+            min-height: 300px;
+        }
+        .chart-title {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        @media (max-width: 600px) {
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="blob-c"></div>
+
+    <header class="hero">
+        <div style="display:flex; justify-content: space-between; align-items: center; width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 20px;">
+            <a href="index.html" style="text-decoration: none; color: var(--text-muted); font-size: 0.9rem;">← Voltar ao Chat</a>
+            <h1 style="margin:0">Painel <span class="badge">Estatísticas</span></h1>
+            <div style="width: 100px;"></div>
+        </div>
+    </header>
+
+    <main class="container" style="max-width: 1200px; flex-direction: column;">
+        
+        <!-- Quick Stats -->
+        <div class="stats-grid">
+            <div class="glass-panel stat-card">
+                <div class="stat-label">Total de Interações</div>
+                <div class="stat-value" id="totalQueries">-</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <div class="stat-label">Tokens Consumidos</div>
+                <div class="stat-value" id="totalTokens">-</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <div class="stat-label">Taxa de Aprovação</div>
+                <div class="stat-value" id="approvalRate">-</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-container">
+            <div class="glass-panel chart-wrapper">
+                <div class="chart-title">📈 Consumo Diário de Tokens</div>
+                <canvas id="tokensChart"></canvas>
+            </div>
+            <div class="glass-panel chart-wrapper">
+                <div class="chart-title">📊 Sentimento do Usuário (Feedback)</div>
+                <div style="max-width: 250px; margin: 0 auto;">
+                    <canvas id="feedbackChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>

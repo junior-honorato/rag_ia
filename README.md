@@ -20,6 +20,7 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 - **Sincronização Vetorial Incremental Inteligente**: O script `init_repo.py` analisa a "Identidade/Hash" MD5 dos arquivos.
 - **Botão Inteligente de Retentativa (Resubmit)**: O frontend se adapta a quebras de internet acionando automaticamente novas tentativas. Se houver total blackout, o usuário pode repassar a pergunta num click sem copiar-colar.
 - **Bypass de Resumo sob Demanda (Retry UI)**: Caso a IA sofra queda temporária na hora de gerar a Ementa Visão Geral do documento (pico 503), oferecemos na própria tela um botão "Reenviar geração do resumo" que acessa a engrenagem do ChromaDB por trás dos panos e aciona o LLM na hora.
+- **Dashboard de Observabilidade (Analytics)**: Interface gerencial dedicada para visualização de gráficos de consumo de tokens, volume de interações e métricas de satisfação (👍/👎).
 - **Utilitário de Diagnóstico**: Inclui o script `debug_models.py` para validar a conectividade e os modelos disponíveis na sua chave de API em segundos.
 
 ## Arquitetura e Fluxo de Dados
@@ -70,8 +71,10 @@ graph TD
 * `init_repo.py` — Script responsável por resetar, ler PDFs, vetorizar e inserir os embeddings de conhecimento na base local ChromaDB.
 * `extract_embeddings.py` (Módulo) — Funções auxiliares de integração com modelagem Embedding.
 * `chroma_client.py` (Módulo) — Classes e funções CRUD intermedirárias de uso do vetor.
-* `static/` — HTML, CSS e JS que compõem o frontend minimalista e bonito do projeto.
-* `.env` — Variáveis de ambiente como `GEMINI_API_KEY`, `GEMINI_MODEL_NAME` e `APP_INTERNAL_API_KEY`.
+* `static/` — HTML, CSS e JS que compõem o frontend.
+    * `dashboard.html` — Interface do painel de estatísticas.
+    * `dashboard.js` — Lógica de renderização de gráficos (Chart.js).
+* `.env` — Variáveis de ambiente secretas.
 * `repositorio/usage_metrics.json` — Log histórico de consumo de tokens.
 * `repositorio/feedbacks.json` — Registro de votos 👍/👎 dos usuários.
 

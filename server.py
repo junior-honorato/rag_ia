@@ -177,6 +177,69 @@ def retry_document_summary(filename: str):
             
     return {"status": "success", "summary": resumo}
 
+@app.get("/api/stats", dependencies=[Depends(get_api_key)])
+def get_dashboard_stats():
+    """Consolida métricas de uso e feedbacks para o Dashboard."""
+    from datetime import datetime
+    
+    # 1. Processar Tokens e Volume
+    metrics_path = os.path.join("repositorio", "usage_metrics.json")
+    daily_tokens = {} # date_str -> total_tokens
+    daily_queries = {} # date_str -> count
+    total_tokens_all = 0
+    
+    if os.path.exists(metrics_path):
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            raw_metrics = json.load(f)
+            
+        # Agrupamento para ignorar duplicatas de streaming (bursts < 3s)
+        last_time = 0
+        current_session_tokens = 0
+        
+        for m in raw_metrics:
+            ts = m.get("timestamp", 0)
+            tokens = m.get("total_tokens", 0)
+            date_str = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+            
+            # Se a diferença for > 3s, consideramos uma nova interação
+            if (ts - last_time) > 3:
+                # Registra o pico da sessão anterior no acumulador diário
+                # (Sempre somamos a diferença ou o total da última interação)
+                daily_queries[date_str] = daily_queries.get(date_str, 0) + 1
+                daily_tokens[date_str] = daily_tokens.get(date_str, 0) + tokens
+                total_tokens_all += tokens
+            else:
+                # Dentro da mesma sessão de streaming, pegamos apenas o incremento/pico
+                # Como o log registra o total acumulado, subtraímos o anterior
+                diff = max(0, tokens - current_session_tokens)
+                daily_tokens[date_str] = daily_tokens.get(date_str, 0) + diff
+                total_tokens_all += diff
+                
+            last_time = ts
+            current_session_tokens = tokens
+
+    # 2. Processar Feedback
+    feedbacks_path = os.path.join("repositorio", "feedbacks.json")
+    positive = 0
+    negative = 0
+    if os.path.exists(feedbacks_path):
+        with open(feedbacks_path, "r", encoding="utf-8") as f:
+            raw_feedbacks = json.load(f)
+            for fb in raw_feedbacks:
+                if fb.get("vote") == 1: positive += 1
+                elif fb.get("vote") == -1: negative += 1
+
+    return {
+        "daily_tokens": daily_tokens,
+        "daily_queries": daily_queries,
+        "total_tokens": total_tokens_all,
+        "feedback": {
+            "positive": positive,
+            "negative": negative,
+            "total": positive + negative
+        }
+    }
+
 @app.post("/api/chat", dependencies=[Depends(get_api_key)])
 async def chat_agent(req: ChatRequest):
     max_retries = 3
