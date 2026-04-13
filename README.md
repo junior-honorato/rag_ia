@@ -6,7 +6,7 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 
 ## Principais Funcionalidades
 
-- **RAG Específico Corporativo**: A Inteligência Artificial (Seguradora) responde perguntas exclusivamente com base no documento indexado, bloqueando "delírios" e alucinações.
+- **RAG Específico Corporativo**: A Inteligência Artificial responde perguntas exclusivamente com base no documento indexado, bloqueando "delírios" e alucinações.
 - **Hierarchical RAG (Parent-Child Retrieval)**: A ingestão fatiará o conteúdo em dois níveis. Pequenos recortes geram precisão de Embeddings para busca no `ChromaDB`, mas na hora do Prompt, injetamos Pedaços Maiores ("Textos Pais") para passar contexto pleno ao LLM.
 - **Cache Semântico Vetorial**: Consultas com mais de 96% de intencionalidade semântica igual a respostas passadas pulam o acionamento custoso do Google Gemini e são retornadas imediatamente do cache!
 - **Auditoria de Feedback**: Balões trazem os amigáveis 👍/👎 ao final. O comportamento alimenta uma tabela local para a calibragem do Sistema.
