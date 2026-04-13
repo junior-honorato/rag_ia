@@ -21,25 +21,43 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 
 ```mermaid
 graph TD
-    subgraph "Processo de Ingestão (Offline)"
-        A[Documentos PDF] -->|Lidos pelo| B(init_repo.py)
-        B -->|Fatiamento e Hash MD5| C{ChromaManager}
-        B -->|Gera Resumo| D[(summaries.json)]
-        B -->|Pede Embeddings| E[API Gemini Embeddings]
-        E -->|Retorna Vetores| C
-        C -->|Armazena| F[(ChromaDB - Base Vetorial Local)]
+    %% Estilos e Cores Principais
+    style A fill:#4a90e2,stroke:#fff,color:#fff
+    style B fill:#34a853,stroke:#fff,color:#fff
+    style C fill:#ea4335,stroke:#fff,color:#fff
+    style D fill:#fbbc05,stroke:#fff,color:#333
+    style E fill:#673ab7,stroke:#fff,color:#fff
+
+    subgraph INGESTÃO ["Processo de Ingestão (Offline)"]
+        direction TB
+        A["Documentos (PDFs)"] -->|PDFLoader| B["Fatiamento Hierárquico<br/>(Pai e Filho)"]
+        B -->|"Geração de Vetores"| C["Google Gemini<br/>Embeddings"]
+        C -->|Persistência| D[("ChromaDB<br/>(Base Vetorial Local)")]
+        B -.->|Metadados| D
     end
 
-    subgraph "Processo de Consulta RAG (Online)"
-        G[Usuário / Web UI] -->|Pergunta| H(FastAPI - server.py)
-        H -->|Converte Pergunta em Vetor| I[API Gemini Embeddings]
-        I -->|Retorna Vetor| H
-        H -->|Busca Similaridade| F
-        F -->|Retorna Trechos Relevantes| H
-        H -->|Monta Prompt com Trechos| J[API Gemini Flash 2.5]
-        J -->|Resposta| H
-        H -->|Streaming da Resposta| G
+    subgraph CONSULTA ["Interface e Busca (Online)"]
+        direction TB
+        U["Usuário (Frontend)"] -->|Pergunta| S["FastAPI (server.py)"]
+        S -->|Consulta Cache| CH{Intencionalidade?}
+        CH -->|"Hit (96% ou mais)"| U
+        
+        CH -->|Miss| GE["Conversão Pergunta<br/>p/ Vetor"]
+        GE -->|"Pesquisa Similarity"| D
+        D -->|"Recupera Trechos Pai/Filho"| S
     end
+
+    subgraph RESPOSTA ["Geração e Entrega"]
+        direction TB
+        S -->|"Prompt Parametrizado"| L["Google Gemini<br/>Flash 2.5"]
+        L -->|Streaming| U
+        U -->|Feedback| F[("feedbacks.json")]
+    end
+
+    %% Conexões entre blocos
+    INGESTÃO --> D
+    D <--> CONSULTA
+    CONSULTA --> RESPOSTA
 ```
 
 ## Estrutura do Projeto
