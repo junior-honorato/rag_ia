@@ -3,13 +3,17 @@ import json
 import time
 import asyncio
 from pydantic import BaseModel
-from fastapi import FastAPI, Security, Depends, Response, HTTPException
+from fastapi import FastAPI, Security, Depends, Response, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from google import genai
 from fastapi.security import APIKeyCookie
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from extract_embeddings import get_embedding
 from chroma_client import ChromaManager
@@ -21,9 +25,19 @@ if not os.environ.get("GEMINI_API_KEY"):
 
 app = FastAPI(title="Agente Especialista Restrito")
 
+# --- CONFIGURAÇÃO DE RATE LIMITING (SlowAPI) ---
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- CONFIGURAÇÃO DE SEGURANÇA: CORS ---
+# Como usamos allow_credentials=True para o Cookie HttpOnly, não podemos usar "*" em allow_origins.
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "http://localhost:8000")
+origins = [o.strip() for o in allowed_origins_env.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -267,7 +281,8 @@ def get_dashboard_stats():
     }
 
 @app.post("/api/chat", dependencies=[Depends(get_api_key)])
-async def chat_agent(req: ChatRequest):
+@limiter.limit("20/minute")
+async def chat_agent(request: Request, req: ChatRequest):
     max_retries = 3
     base_delay = 2
     

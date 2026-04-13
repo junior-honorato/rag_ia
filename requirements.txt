@@ -7,3 +7,4 @@ google-genai>=0.1.2
 langchain-community
 langchain
 pypdf
+slowapi
