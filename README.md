@@ -8,8 +8,11 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 
 - **RAG Específico Corporativo**: A Inteligência Artificial responde perguntas exclusivamente com base no documento indexado, bloqueando "delírios" e alucinações.
 - **Hierarchical RAG (Parent-Child Retrieval)**: A ingestão fatiará o conteúdo em dois níveis. Pequenos recortes geram precisão de Embeddings para busca no `ChromaDB`, mas na hora do Prompt, injetamos Pedaços Maiores ("Textos Pais") para passar contexto pleno ao LLM.
+- **Expansão de Consultas (Query Expansion)**: O sistema utiliza o Gemini para reescrever e otimizar a pergunta original do usuário, aumentando drasticamente a taxa de acerto na recuperação semântica.
 - **Cache Semântico Vetorial**: Consultas com mais de 96% de intencionalidade semântica igual a respostas passadas pulam o acionamento custoso do Google Gemini e são retornadas imediatamente do cache!
-- **Auditoria de Feedback**: Balões trazem os amigáveis 👍/👎 ao final. O comportamento alimenta uma tabela local para a calibragem do Sistema.
+- **Auditoria de Feedback & Métricas**: Balões trazem os amigáveis 👍/👎 ao final. O comportamento alimenta o arquivo `feedbacks.json` para calibragem.
+- **Observabilidade de Consumo**: Rastreamento automático de tokens (Prompt, Candidates e Total) gravados em `usage_metrics.json` para controle de custos e performance.
+- **Busca Profunda (Top 15 Retrieval)**: O motor realiza o ranking dos 15 trechos mais relevantes, garantindo que nenhum fragmento crítico de contexto seja ignorado pela IA.
 - **Respostas em Tempo Real (Streaming)**: As respostas são exibidas com o "efeito máquina de escrever", idêntico ao fluxo nativo do ChatGPT, sem necessidade de esperar todo o processamento.
 - **Renderização Markdown**: Suporte total a negrito, itálico e listas nas respostas da IA usando `marked.js`.
 - **Persistência de Histórico**: O robô lembra das perguntas e respostas anteriores da mesma aba do navegador e o histórico é persistido localmente via `LocalStorage`.
@@ -68,7 +71,9 @@ graph TD
 * `extract_embeddings.py` (Módulo) — Funções auxiliares de integração com modelagem Embedding.
 * `chroma_client.py` (Módulo) — Classes e funções CRUD intermedirárias de uso do vetor.
 * `static/` — HTML, CSS e JS que compõem o frontend minimalista e bonito do projeto.
-* `.env` — Variáveis de ambiente como `GEMINI_API_KEY` (este arquivo nunca é commitado).
+* `.env` — Variáveis de ambiente como `GEMINI_API_KEY` e `GEMINI_MODEL_NAME`.
+* `repositorio/usage_metrics.json` — Log histórico de consumo de tokens.
+* `repositorio/feedbacks.json` — Registro de votos 👍/👎 dos usuários.
 
 ## Como Instalar e Rodar o Projeto
 
@@ -87,8 +92,7 @@ python -m venv venv
 venv\Scripts\activate  # Windows
 
 # 3. Instale as Bibliotecas Necessárias
-pip install fastapi uvicorn pydantic python-dotenv chromadb
-pip install "google-genai>=0.1.2"
+pip install fastapi uvicorn pydantic python-dotenv chromadb langchain langchain-community pypdf "google-genai>=0.1.2"
 ```
 
 ### Passo a Passo de Execução
