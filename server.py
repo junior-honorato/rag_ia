@@ -3,14 +3,13 @@ import json
 import time
 import asyncio
 from pydantic import BaseModel
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import FastAPI, Security, Depends, Response, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from google import genai
-from fastapi.security.api_key import APIKeyHeader
-from fastapi import Security, Depends
+from fastapi.security import APIKeyCookie
 
 from extract_embeddings import get_embedding
 from chroma_client import ChromaManager
@@ -33,19 +32,46 @@ app.add_middleware(
 genai_client = genai.Client()
 db = ChromaManager()
 
-# --- SEGURANÇA: Configuração de API Key Interna ---
-API_KEY_NAME = "X-API-KEY"
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+# --- SEGURANÇA: Autenticação baseada em Cookies (HttpOnly) ---
+COOKIE_NAME = "session_sicoob_id"
+api_key_cookie = APIKeyCookie(name=COOKIE_NAME, auto_error=False)
 
-async def get_api_key(header_key: str = Security(api_key_header)):
-    """Valida se a requisição possui a chave de acesso correta."""
+async def get_api_key(cookie_value: str = Security(api_key_cookie)):
+    """Valida se a requisição possui o cookie de sessão correto."""
     expected_key = os.environ.get("APP_INTERNAL_API_KEY", "sicoob-internal-dev-key")
-    if header_key == expected_key:
-        return header_key
+    if cookie_value == expected_key:
+        return cookie_value
     raise HTTPException(
         status_code=403, 
-        detail="Acesso não autorizado. Chave de API interna inválida ou ausente."
+        detail="Sessão inválida ou expirada. Recarregue a página."
     )
+
+@app.get("/")
+async def get_index(response: Response):
+    """Serve o index.html e injeta o cookie de sessão seguro."""
+    session_key = os.environ.get("APP_INTERNAL_API_KEY", "sicoob-internal-dev-key")
+    response = FileResponse("static/index.html")
+    response.set_cookie(
+        key=COOKIE_NAME, 
+        value=session_key, 
+        httponly=True, 
+        samesite="strict",
+        max_age=3600 * 12 # 12 horas de sessão
+    )
+    return response
+
+@app.get("/dashboard.html")
+async def get_dashboard(response: Response):
+    """Garante que o acesso direto ao dashboard também injete o cookie."""
+    session_key = os.environ.get("APP_INTERNAL_API_KEY", "sicoob-internal-dev-key")
+    response = FileResponse("static/dashboard.html")
+    response.set_cookie(
+        key=COOKIE_NAME, 
+        value=session_key, 
+        httponly=True, 
+        samesite="strict"
+    )
+    return response
 
 from typing import List, Dict, Any
 
@@ -386,7 +412,8 @@ IMPORTANTE (DIRETRIZES DE SEGURANÇA):
             raise HTTPException(status_code=500, detail=error_str)
 
 os.makedirs("static", exist_ok=True)
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+# Montamos os arquivos estáticos (CSS, JS, Imagens) mas a raiz '/' já é tratada acima
+app.mount("/", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn

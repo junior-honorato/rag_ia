@@ -1,10 +1,8 @@
-const INTERNAL_API_KEY = "sicoob-internal-dev-key";
+// A autenticação agora é feita via Cookies HttpOnly (session_sicoob_id) injetados pelo backend.
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const res = await fetch('/api/stats', {
-            headers: { 'X-API-KEY': INTERNAL_API_KEY }
-        });
+        const res = await fetch('/api/stats');
         
         if (!res.ok) throw new Error("Acesso negado ou erro no servidor.");
         

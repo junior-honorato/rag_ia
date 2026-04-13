@@ -136,7 +136,7 @@ docker run -p 8000:8000 --env-file .env rag-ia-sicoob
 
 Este Agente foi projetado para operar em ambientes corporativos, possuindo camadas de segurança ativas:
 
-1. **Autenticação de API Interna**: Todas as chamadas entre o Frontend e o Backend exigem uma `X-API-KEY` (configurada via `APP_INTERNAL_API_KEY` no `.env`). Isso impede que usuários externos acessem os dados ou gastem seus tokens através de chamadas diretas à API.
+1. **Autenticação de Sessão (Cookies HttpOnly)**: Todas as chamadas entre o Frontend e o Backend são protegidas por cookies de sessão seguros (`HttpOnly`). Isso elimina chaves hardcoded no código JavaScript, impedindo que usuários mal-intencionados visualizem ou copiem credenciais via "Inspecionar Elemento".
 2. **Proteção contra XSS (DOMPurify)**: No frontend, todas as respostas do modelo Gemini passam por uma sanitização rigorosa utilizando a biblioteca `DOMPurify`. Isso garante que eventuais scripts ou códigos maliciosos injetados nos PDFs ou gerados pela IA não sejam executados no navegador do usuário.
 3. **Blindagem de Prompt (Guardrails)**: O `system_prompt` possui diretrizes estritas de "blindagem" para impedir ataques de *Prompt Injection*. A IA está instruída a ignorar tentativas de desvio de conduta (ex: "ignore all previous instructions") e a nunca revelar suas instruções internas.
 4. **Isolamento de Dados**: Os arquivos de PDF originais, o banco vetorial e os logs de métricas são mantidos localmente e estão configurados no `.gitignore` para nunca serem expostos no repositório público.

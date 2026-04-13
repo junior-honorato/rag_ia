@@ -1,7 +1,7 @@
 // =============================
 // LÓGICA DE INFO DO DOCUMENTO
 // =============================
-const INTERNAL_API_KEY = "sicoob-internal-dev-key"; // Em produção, idealmente injetado ou recuperado de forma segura
+// A autenticação agora é feita via Cookies HttpOnly (session_sicoob_id) injetados pelo backend.
 
 window.sendFeedback = async function(btnEl, q, r, v) {
     const parent = btnEl.parentElement;
@@ -10,8 +10,7 @@ window.sendFeedback = async function(btnEl, q, r, v) {
         await fetch('/api/feedback', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'X-API-KEY': INTERNAL_API_KEY
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({query: q, response: r, vote: v})
         });
@@ -22,9 +21,7 @@ window.sendFeedback = async function(btnEl, q, r, v) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const res = await fetch('/api/documents', {
-            headers: { 'X-API-KEY': INTERNAL_API_KEY }
-        });
+        const res = await fetch('/api/documents');
         const data = await res.json();
         
         document.getElementById('docLoader').style.display = 'none';
@@ -82,8 +79,7 @@ window.editSummary = async function(filename) {
             const res = await fetch(`/api/documents/${filename}/summary`, {
                 method: 'PUT',
                 headers: { 
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': INTERNAL_API_KEY
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ summary: newSummary.trim() })
             });
@@ -101,8 +97,7 @@ window.retryPdfSummary = async function(filename) {
     
     try {
         const res = await fetch(`/api/documents/${filename}/retry_summary`, {
-            method: 'POST',
-            headers: { 'X-API-KEY': INTERNAL_API_KEY }
+            method: 'POST'
         });
         const data = await res.json();
         
@@ -221,8 +216,7 @@ chatForm.addEventListener('submit', async (e) => {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': INTERNAL_API_KEY
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({query, history: chatHistory})
             });
