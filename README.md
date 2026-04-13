@@ -71,7 +71,7 @@ graph TD
 * `extract_embeddings.py` (Módulo) — Funções auxiliares de integração com modelagem Embedding.
 * `chroma_client.py` (Módulo) — Classes e funções CRUD intermedirárias de uso do vetor.
 * `static/` — HTML, CSS e JS que compõem o frontend minimalista e bonito do projeto.
-* `.env` — Variáveis de ambiente como `GEMINI_API_KEY` e `GEMINI_MODEL_NAME`.
+* `.env` — Variáveis de ambiente como `GEMINI_API_KEY`, `GEMINI_MODEL_NAME` e `APP_INTERNAL_API_KEY`.
 * `repositorio/usage_metrics.json` — Log histórico de consumo de tokens.
 * `repositorio/feedbacks.json` — Registro de votos 👍/👎 dos usuários.
 
@@ -128,6 +128,15 @@ docker run -p 8000:8000 --env-file .env rag-ia-sicoob
 
 - **Rate Limits & API Spikes**: O backend está customizado com `Max Retries` e algorítimo *Exponential Backoff*. Se os servidores do Google sobrecarregarem, o sistema tentará silenciosamente contornar a fila antes de devolver erro final.
 - **Frontend Fallbacks**: Caso a quota total da sua API Account acabe e o modelo recuse serviço (429), a tela exibirá uma mensagem de erro visível, indicando pausa do serviço ao uso geral. 
+
+## Segurança e Blindagem
+
+Este Agente foi projetado para operar em ambientes corporativos, possuindo camadas de segurança ativas:
+
+1. **Autenticação de API Interna**: Todas as chamadas entre o Frontend e o Backend exigem uma `X-API-KEY` (configurada via `APP_INTERNAL_API_KEY` no `.env`). Isso impede que usuários externos acessem os dados ou gastem seus tokens através de chamadas diretas à API.
+2. **Proteção contra XSS (DOMPurify)**: No frontend, todas as respostas do modelo Gemini passam por uma sanitização rigorosa utilizando a biblioteca `DOMPurify`. Isso garante que eventuais scripts ou códigos maliciosos injetados nos PDFs ou gerados pela IA não sejam executados no navegador do usuário.
+3. **Blindagem de Prompt (Guardrails)**: O `system_prompt` possui diretrizes estritas de "blindagem" para impedir ataques de *Prompt Injection*. A IA está instruída a ignorar tentativas de desvio de conduta (ex: "ignore all previous instructions") e a nunca revelar suas instruções internas.
+4. **Isolamento de Dados**: Os arquivos de PDF originais, o banco vetorial e os logs de métricas são mantidos localmente e estão configurados no `.gitignore` para nunca serem expostos no repositório público.
 
 ---
 _Criado sob rigorosa parametrização Corporativa via Gemini & FastAPI._
