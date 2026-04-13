@@ -1,6 +1,6 @@
-# Multimodal RAG - Agente Corporativo Pessoal
+# RAG Corporativo - Agente Especialista Sicoob
 
-Este projeto implementa um **Agente Exclusivo / ChatBot Local** usando RAG (Retrieval-Augmented Generation). O sistema processa documentos multimodais (como PDFs) de forma local, realiza fatiamento, armazena seus vetores no `ChromaDB` (banco de dados vetorial local) e usa os poderosos modelos **Gemini** do Google para buscar informações altamente precisas no escopo corporativo.
+Este projeto implementa um **Agente Exclusivo / ChatBot Local** usando RAG (Retrieval-Augmented Generation). O sistema processa documentos (como PDFs) de forma local, realiza fatiamento, armazena seus vetores no `ChromaDB` (banco de dados vetorial local) e usa os poderosos modelos **Gemini** do Google para buscar informações altamente precisas no escopo corporativo.
 
 A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência Artificial responde baseando-se única e estritamente na base de conhecimento vetorial parametrizada.
 
@@ -95,4 +95,4 @@ pip install "google-genai>=0.1.2"
 - **Frontend Fallbacks**: Caso a quota total da sua API Account acabe e o modelo recuse serviço (429), a tela exibirá uma mensagem de erro visível, indicando pausa do serviço ao uso geral. 
 
 ---
-_Criado sob rigorosa parametrização Corporativa MultiModal via Gemini & FastAPI._
+_Criado sob rigorosa parametrização Corporativa via Gemini & FastAPI._
