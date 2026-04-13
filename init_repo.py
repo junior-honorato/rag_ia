@@ -69,10 +69,10 @@ def process_repository():
         current_hash = get_file_hash(file_path)
         
         if file_name in state and state[file_name] == current_hash and file_name in summaries:
-            print("✔️ Sem alterações (Hash + Resumo Existente). Pulado!")
+            print("[OK] Sem alterações (Hash + Resumo Existente). Pulado!")
             continue
             
-        print("\n   🔄 Alteração detectada. Processando e Gerando Resumo...")
+        print("\n   [SYNC] Alteração detectada. Processando e Gerando Resumo...")
         if file_name in state:
             db.delete_by_file(file_name)
             
@@ -103,26 +103,26 @@ def process_repository():
                 db.upsert_vector(vector_id, vector, metadata)
                 total_children += 1
                 
-        print(f"   ✂️ Fatiado em {len(parent_chunks)} blocos-Pai e {total_children} vetores-Filhos. Injetando...")
+        print(f"   [SPLIT] Fatiado em {len(parent_chunks)} blocos-Pai e {total_children} vetores-Filhos. Injetando...")
         
-        print("   🤖 Extraindo sinopse isolada...")
+        print("   [IA] Extraindo sinopse isolada...")
         resumo_prompt = f"Faça 1 parágrafo bem curto com um resumo profissional do que se trata este documento específico. Base-se nos seguintes trechos:\n{texto_completo[:4000]}"
         
         resumo = "Resumo Pendente"
         for attempt in range(3):
             try:
                 response = genai_client.models.generate_content(
-                    model='gemini-2.5-flash', contents=resumo_prompt
+                    model=os.environ.get("GEMINI_MODEL_NAME"), contents=resumo_prompt
                 )
                 resumo = response.text
                 break
             except Exception as e:
                 error_str = str(e)
                 if ("503" in error_str or "429" in error_str) and attempt < 2:
-                    print(f"   ⏳ Servidor ocupado. Aguardando {3 * (2**attempt)}s...")
+                    print(f"   [WAIT] Servidor ocupado. Aguardando {3 * (2**attempt)}s...")
                     time.sleep(3 * (2 ** attempt))
                 else:
-                    print(f"   ❌ Falha na geração: {error_str}")
+                    print(f"   [FAIL] Falha na geração: {error_str}")
                     resumo = "⚠️ Resumo temporariamente indisponível. O PDF foi indexado e está pronto para RAG, mas não foi possível gerar a ementa devido a tráfego na nuvem."
                     break
                     
@@ -141,7 +141,7 @@ def process_repository():
     if os.path.exists(info_legacy):
         os.remove(info_legacy)
         
-    print(f"\n✅ Banco Multimodal Local Completamente Sincronizado!")
+    print(f"\n[SUCCESS] Banco Multimodal Local Completamente Sincronizado!")
 
 if __name__ == "__main__":
     process_repository()

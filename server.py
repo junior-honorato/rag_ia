@@ -45,6 +45,37 @@ class FeedbackRequest(BaseModel):
     response: str
     vote: int
 
+def expand_query(client: genai.Client, query: str) -> str:
+    """Usa o Gemini para reescrever a query focando em busca corporativa (Query Expansion)."""
+    prompt = f"Reescreva a seguinte pergunta de um usuário para que ela seja mais eficaz em uma busca semântica em documentos corporativos técnicos. Mantenha o idioma original. Retorne APENAS o texto da nova pergunta.\\n\\nPergunta: {query}"
+    try:
+        response = client.models.generate_content(
+            model=os.environ.get("GEMINI_MODEL_NAME"),
+            contents=prompt
+        )
+        expanded = response.text.strip()
+        return expanded if expanded else query
+    except:
+        return query
+
+def log_usage(usage):
+    """Grava métricas de consumo de tokens em arquivo local."""
+    if not usage: return
+    log_path = os.path.join("repositorio", "usage_metrics.json")
+    logs = []
+    if os.path.exists(log_path):
+        with open(log_path, "r", encoding="utf-8") as f:
+            try: logs = json.load(f)
+            except: pass
+    logs.append({
+        "timestamp": time.time(),
+        "prompt_tokens": usage.prompt_token_count,
+        "candidates_tokens": usage.candidates_token_count,
+        "total_tokens": usage.total_token_count
+    })
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(logs[-100:], f, indent=4)
+
 @app.post("/api/feedback")
 def submit_feedback(payload: FeedbackRequest):
     feedbacks_path = os.path.join("repositorio", "feedbacks.json")
@@ -102,7 +133,7 @@ def retry_document_summary(filename: str):
     
     try:
         response = genai_client.models.generate_content(
-            model='gemini-2.5-flash', contents=resumo_prompt
+            model=os.environ.get("GEMINI_MODEL_NAME"), contents=resumo_prompt
         )
         resumo = response.text
     except Exception as e:
@@ -139,9 +170,13 @@ async def chat_agent(req: ChatRequest):
         try:
             if not req.query.strip():
                 return {"response": ""}
+
+            # --- ITEM 1: QUERY EXPANSION ---
+            search_query = expand_query(genai_client, req.query)
+            print(f"[RAG Evolution] Original: {req.query} | Expanded: {search_query}")
                 
-            # Pesquisa os 10 chunks filhos de altíssima precisão
-            vector = get_embedding(genai_client, text=req.query)
+            # Pesquisa os chunks com a query expandida
+            vector = get_embedding(genai_client, text=search_query)
             
             # --- START SEMANTIC CACHE ---
             cached_answer = db.check_cache(vector, threshold=0.04) # 96% similarity
@@ -158,7 +193,8 @@ async def chat_agent(req: ChatRequest):
                 return StreamingResponse(cache_stream_generator(), media_type="application/x-ndjson")
             # --- END SEMANTIC CACHE ---
             
-            resultados = db.search_similar(vector, top_k=10)
+            # --- ITEM 1: ENHANCED RETRIEVAL (TOP 15) ---
+            resultados = db.search_similar(vector, top_k=15)
             
             matches = resultados.get("matches", [])
             
@@ -225,7 +261,7 @@ TRECHOS RECUPERADOS (FONTES):
             )
             
             response_stream = genai_client.models.generate_content_stream(
-                model='gemini-2.5-flash',
+                model=os.environ.get("GEMINI_MODEL_NAME"),
                 contents=chat_contents,
                 config=config
             )
@@ -239,6 +275,9 @@ TRECHOS RECUPERADOS (FONTES):
                     for chunk in response_stream:
                         assembled_text += chunk.text
                         yield json.dumps({"type": "chunk", "text": chunk.text}) + "\n"
+                        # Se o chunk trouxer metadados de uso (geralmente no último), loga
+                        if chunk.usage_metadata:
+                            log_usage(chunk.usage_metadata)
                         
                     # Finalizou com sucesso, grava a resposta no Semantic Cache para a próxima!
                     db.save_to_cache(query_vector, assembled_text, query_text)

@@ -11,11 +11,13 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 - **Cache Semântico Vetorial**: Consultas com mais de 96% de intencionalidade semântica igual a respostas passadas pulam o acionamento custoso do Google Gemini e são retornadas imediatamente do cache!
 - **Auditoria de Feedback**: Balões trazem os amigáveis 👍/👎 ao final. O comportamento alimenta uma tabela local para a calibragem do Sistema.
 - **Respostas em Tempo Real (Streaming)**: As respostas são exibidas com o "efeito máquina de escrever", idêntico ao fluxo nativo do ChatGPT, sem necessidade de esperar todo o processamento.
-- **Memória de Conversa Per-Sessão**: O robô lembra das perguntas e respostas anteriores da mesma aba do navegador, alternando papéis corretamente.
+- **Renderização Markdown**: Suporte total a negrito, itálico e listas nas respostas da IA usando `marked.js`.
+- **Persistência de Histórico**: O robô lembra das perguntas e respostas anteriores da mesma aba do navegador e o histórico é persistido localmente via `LocalStorage`.
 - **Citações Dinâmicas Visuais**: Após entregar a resposta, você conta com um seletor visual na interface para atestar fidedignamente qual fragmento pai embasou a resposta original.
 - **Sincronização Vetorial Incremental Inteligente**: O script `init_repo.py` analisa a "Identidade/Hash" MD5 dos arquivos.
 - **Botão Inteligente de Retentativa (Resubmit)**: O frontend se adapta a quebras de internet acionando automaticamente novas tentativas. Se houver total blackout, o usuário pode repassar a pergunta num click sem copiar-colar.
 - **Bypass de Resumo sob Demanda (Retry UI)**: Caso a IA sofra queda temporária na hora de gerar a Ementa Visão Geral do documento (pico 503), oferecemos na própria tela um botão "Reenviar geração do resumo" que acessa a engrenagem do ChromaDB por trás dos panos e aciona o LLM na hora.
+- **Utilitário de Diagnóstico**: Inclui o script `debug_models.py` para validar a conectividade e os modelos disponíveis na sua chave de API em segundos.
 
 ## Arquitetura e Fluxo de Dados
 
@@ -48,8 +50,8 @@ graph TD
 
     subgraph RESPOSTA ["Geração e Entrega"]
         direction TB
-        S -->|"Prompt Parametrizado"| L["Google Gemini<br/>Flash 2.5"]
-        L -->|Streaming| U
+        S -->|"Prompt Parametrizado"| L["Google Gemini<br/>Flash 3"]
+        L -->|Streaming | U
         U -->|Feedback| F[("feedbacks.json")]
     end
 
@@ -105,6 +107,18 @@ pip install "google-genai>=0.1.2"
 
 3. **Acesse a Aplicação**
    No seu navegador acesse `http://localhost:8000` ou compartilhe na sua rede o IP da sua máquina.
+
+### Execução via Docker (Opcional)
+
+Para facilitar o deploy ou garantir um ambiente idêntico, você pode usar o Docker:
+
+```bash
+# 1. Construir a imagem
+docker build -t rag-ia-sicoob .
+
+# 2. Rodar o container
+docker run -p 8000:8000 --env-file .env rag-ia-sicoob
+```
 
 ### Segurança e Limits
 

@@ -118,16 +118,50 @@ const btnChat = document.getElementById('btnChat');
 
 let chatHistory = [];
 
-function appendMessage(sender, text) {
-    const div = document.createElement('div');
-    div.className = `message ${sender}`;
+// PERSISTÊNCIA LOCAL
+function saveHistoryToLocal() {
+    localStorage.setItem('sicoob_chat_history', JSON.stringify(chatHistory));
+}
+
+function loadHistoryFromLocal() {
+    const saved = localStorage.getItem('sicoob_chat_history');
+    if (saved) {
+        try {
+            chatHistory = JSON.parse(saved);
+            chatHistory.forEach(msg => {
+                const role = msg.role === 'model' ? 'bot' : 'user';
+                appendMessage(role, msg.content, true);
+            });
+        } catch(e) { console.error("Erro ao carregar histórico", e); }
+    }
+}
+
+// Chamar ao carregar a página
+document.addEventListener('DOMContentLoaded', () => {
+    loadHistoryFromLocal();
+});
+
+const renderText = (text) => {
+    if (window.marked) {
+        return marked.parse(text);
+    }
     let formattedText = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
     formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
     formattedText = formattedText.replace(/\n\n/g, "<br><br>");
     formattedText = formattedText.replace(/\n/g, "<br>");
-    div.innerHTML = formattedText;
+    return formattedText;
+};
+
+function appendMessage(sender, text, skipSave = false) {
+    const div = document.createElement('div');
+    div.className = `message ${sender}`;
+    div.innerHTML = renderText(text);
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
+    
+    if (!skipSave && (sender === 'user' || sender === 'bot')) {
+        saveHistoryToLocal();
+    }
 }
 
 chatForm.addEventListener('submit', async (e) => {
@@ -199,14 +233,6 @@ chatForm.addEventListener('submit', async (e) => {
             botMsgDiv.className = `message bot`;
             chatBox.appendChild(botMsgDiv);
             
-            const renderText = (text) => {
-                let formattedText = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-                formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
-                formattedText = formattedText.replace(/\n\n/g, "<br><br>");
-                formattedText = formattedText.replace(/\n/g, "<br>");
-                return formattedText;
-            };
-
             while(true) {
                 const {done, value} = await reader.read();
                 if (done) break;

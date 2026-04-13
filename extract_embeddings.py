@@ -33,7 +33,7 @@ def get_embedding(client, text=None, file_path=None):
 
     # A chamada de embedding:
     result = client.models.embed_content(
-        model='gemini-embedding-2-preview',
+        model=os.environ.get("GEMINI_EMBEDDING_MODEL_NAME"),
         contents=contents,
         config=types.EmbedContentConfig(output_dimensionality=768)
     )
