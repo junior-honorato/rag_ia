@@ -26,7 +26,6 @@ graph TD
     style B fill:#34a853,stroke:#fff,color:#fff
     style C fill:#ea4335,stroke:#fff,color:#fff
     style D fill:#fbbc05,stroke:#fff,color:#333
-    style E fill:#673ab7,stroke:#fff,color:#fff
 
     subgraph INGESTÃO ["Processo de Ingestão (Offline)"]
         direction TB
