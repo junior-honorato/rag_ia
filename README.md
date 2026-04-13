@@ -68,22 +68,43 @@ graph TD
 ## Estrutura do Projeto
 
 * `server.py` — Código principal da API FastAPI (Backend). Responsável por receber o prompt, consultar o ChromaDB e chamar a API do Gemini.
-* `init_repo.py` — Script responsável por resetar, ler PDFs, vetorizar e inserir os embeddings de conhecimento na base local ChromaDB.
+* `init_repo.py` — Script responsável por ler PDFs, vetorizar e inserir os embeddings na base local ChromaDB.
 * `extract_embeddings.py` (Módulo) — Funções auxiliares de integração com modelagem Embedding.
-* `chroma_client.py` (Módulo) — Classes e funções CRUD intermedirárias de uso do vetor.
-* `static/` — HTML, CSS e JS que compõem o frontend.
-    * `dashboard.html` — Interface do painel de estatísticas.
-    * `dashboard.js` — Lógica de renderização de gráficos (Chart.js).
+* `chroma_client.py` (Módulo) — Classes e funções CRUD intermediárias do banco vetorial.
+* `static/` — HTML, CSS e JS do frontend.
+    * `index.html` — Tela de chat principal.
+    * `dashboard.html` — Painel de métricas.
+    * `main.js` e `dashboard.js` — Lógicas de interação e gráficos.
+* `repositorio/` — **Diretório Geral de Dados**:
+    * Coloque seus **PDFs** aqui para indexação.
+    * `usage_metrics.json`: Histórico de consumo de tokens.
+    * `feedbacks.json`: Registro de votos 👍/👎.
+* `chroma_db/` — Banco de dados vetorial local (gerado automaticamente).
 * `.env` — Variáveis de ambiente secretas.
-* `repositorio/usage_metrics.json` — Log histórico de consumo de tokens.
-* `repositorio/feedbacks.json` — Registro de votos 👍/👎 dos usuários.
 
 ## Como Instalar e Rodar o Projeto
 
 ### Pré-Requisitos
 
-No terminal ou PowerShell, verifique se você possui o Python instalado e então instale as dependências.
-(Certifique-se de configurar e fornecer sua API Key do Google no arquivo `.env`)
+1.  **Python 3.10+**: Certifique-se de ter o Python instalado.
+2.  **Google Gemini API Key**: Gere sua chave no [Google AI Studio](https://aistudio.google.com/).
+
+### Configuração de Variáveis de Ambiente (.env)
+
+Crie um arquivo chamado `.env` na raiz do projeto e configure as seguintes variáveis:
+
+```env
+# Chave de API do Google Gemini (Obrigatória)
+GEMINI_API_KEY="SUA_CHAVE_AQUI"
+
+# Nome do modelo Gemini (Opcional, padrão: gemini-2.0-flash)
+GEMINI_MODEL_NAME="gemini-2.0-flash"
+
+# Chave interna para as sessões do Dashboard/API (Opcional)
+APP_INTERNAL_API_KEY="sicoob-internal-dev-key"
+```
+
+### Instalação
 
 ```bash
 # 1. Clone o repositório
@@ -113,7 +134,16 @@ pip install fastapi uvicorn pydantic python-dotenv chromadb langchain langchain-
    ```
 
 3. **Acesse a Aplicação**
-   No seu navegador acesse `http://localhost:8000` ou compartilhe na sua rede o IP da sua máquina.
+   No seu navegador acesse `http://localhost:8000`.
+
+4. **Acesse o Dashboard de métricas**
+   Acesse `http://localhost:8000/dashboard.html` ou clique no botão **Estatísticas** no canto superior do chat.
+
+5. **Validação de Modelo (Opcional)**
+   Para listar os modelos disponíveis e testar sua chave de API rapidamente, execute:
+   ```bash
+   python debug_models.py
+   ```
 
 ### Execução via Docker (Opcional)
 
@@ -140,6 +170,15 @@ Este Agente foi projetado para operar em ambientes corporativos, possuindo camad
 2. **Proteção contra XSS (DOMPurify)**: No frontend, todas as respostas do modelo Gemini passam por uma sanitização rigorosa utilizando a biblioteca `DOMPurify`. Isso garante que eventuais scripts ou códigos maliciosos injetados nos PDFs ou gerados pela IA não sejam executados no navegador do usuário.
 3. **Blindagem de Prompt (Guardrails)**: O `system_prompt` possui diretrizes estritas de "blindagem" para impedir ataques de *Prompt Injection*. A IA está instruída a ignorar tentativas de desvio de conduta (ex: "ignore all previous instructions") e a nunca revelar suas instruções internas.
 4. **Isolamento de Dados**: Os arquivos de PDF originais, o banco vetorial e os logs de métricas são mantidos localmente e estão configurados no `.gitignore` para nunca serem expostos no repositório público.
+
+## Solucionando Problemas (FAQ)
+
+- **A IA não responde ou dá erro 503/429?**
+  Isso geralmente é sobrecarga temporária na API do Google ou fim da quota gratuita. O sistema tentará 3 vezes automaticamente com atrasos crescentes (*backoff*). Caso persista, aguarde alguns minutos.
+- **O Dashboard está zerado?**
+  As métricas são geradas conforme você interage com o Chat. Faça algumas perguntas para ver os gráficos ganharem vida.
+- **Meus novos PDFs não aparecem na busca?**
+  Sempre que adicionar ou alterar arquivos na pasta `repositorio/`, você deve rodar o comando `python init_repo.py` para sincronizar a base vetorial.
 
 ---
 _Criado sob rigorosa parametrização Corporativa via Gemini & FastAPI._
