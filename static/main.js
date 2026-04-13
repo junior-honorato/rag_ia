@@ -1,6 +1,7 @@
 // =============================
 // LÓGICA DE INFO DO DOCUMENTO
 // =============================
+const INTERNAL_API_KEY = "sicoob-internal-dev-key"; // Em produção, idealmente injetado ou recuperado de forma segura
 
 window.sendFeedback = async function(btnEl, q, r, v) {
     const parent = btnEl.parentElement;
@@ -8,7 +9,10 @@ window.sendFeedback = async function(btnEl, q, r, v) {
     try {
         await fetch('/api/feedback', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-KEY': INTERNAL_API_KEY
+            },
             body: JSON.stringify({query: q, response: r, vote: v})
         });
     } catch(e) {
@@ -18,7 +22,9 @@ window.sendFeedback = async function(btnEl, q, r, v) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        const res = await fetch('/api/documents');
+        const res = await fetch('/api/documents', {
+            headers: { 'X-API-KEY': INTERNAL_API_KEY }
+        });
         const data = await res.json();
         
         document.getElementById('docLoader').style.display = 'none';
@@ -75,7 +81,10 @@ window.editSummary = async function(filename) {
         try {
             const res = await fetch(`/api/documents/${filename}/summary`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': INTERNAL_API_KEY
+                },
                 body: JSON.stringify({ summary: newSummary.trim() })
             });
             if (!res.ok) throw new Error("Falha HTTP");
@@ -92,7 +101,8 @@ window.retryPdfSummary = async function(filename) {
     
     try {
         const res = await fetch(`/api/documents/${filename}/retry_summary`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'X-API-KEY': INTERNAL_API_KEY }
         });
         const data = await res.json();
         
@@ -142,14 +152,22 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 const renderText = (text) => {
+    let htmlContent = "";
     if (window.marked) {
-        return marked.parse(text);
+        htmlContent = marked.parse(text);
+    } else {
+        let formattedText = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+        formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
+        formattedText = formattedText.replace(/\n\n/g, "<br><br>");
+        formattedText = formattedText.replace(/\n/g, "<br>");
+        htmlContent = formattedText;
     }
-    let formattedText = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    formattedText = formattedText.replace(/\*(.*?)\*/g, "<em>$1</em>");
-    formattedText = formattedText.replace(/\n\n/g, "<br><br>");
-    formattedText = formattedText.replace(/\n/g, "<br>");
-    return formattedText;
+    
+    // SANITIZAÇÃO (XSS Protection)
+    if (window.DOMPurify) {
+        return DOMPurify.sanitize(htmlContent);
+    }
+    return htmlContent;
 };
 
 function appendMessage(sender, text, skipSave = false) {
@@ -202,7 +220,10 @@ chatForm.addEventListener('submit', async (e) => {
         try {
             const res = await fetch('/api/chat', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': INTERNAL_API_KEY
+                },
                 body: JSON.stringify({query, history: chatHistory})
             });
             
