@@ -33,7 +33,7 @@ graph TD
     style C fill:#ea4335,stroke:#fff,color:#fff
     style D fill:#fbbc05,stroke:#fff,color:#333
 
-    subgraph INGESTÃO ["Processo de Ingestão (Offline)"]
+    subgraph INGESTÃO ["1. Processo de Ingestão (Offline)"]
         direction TB
         A["Documentos (PDFs)"] -->|PDFLoader| B["Fatiamento Hierárquico<br/>(Pai e Filho)"]
         B -->|"Geração de Vetores"| C["Google Gemini<br/>Embeddings"]
@@ -41,22 +41,28 @@ graph TD
         B -.->|Metadados| D
     end
 
-    subgraph CONSULTA ["Interface e Busca (Online)"]
+    subgraph CONSULTA ["2. Interface e Motor RAG (Online)"]
         direction TB
-        U["Usuário (Frontend)"] -->|Pergunta| S["FastAPI (server.py)"]
-        S -->|Consulta Cache| CH{Intencionalidade?}
-        CH -->|"Hit (96% ou mais)"| U
+        U["Usuário (Frontend)"] -->|1. Pergunta| S["FastAPI (server.py)"]
         
-        CH -->|Miss| GE["Conversão Pergunta<br/>p/ Vetor"]
-        GE -->|"Pesquisa Similarity"| D
+        S -->|2. Query Expansion| QE["Gemini: Otimiza/Reescreve<br/>a Pergunta"]
+        QE -->|3. Conversão p/ Vetor| GE["Google Gemini<br/>Embeddings"]
+        
+        GE -->|4. Consulta Cache| CH{"Similaridade<br/>acima de 96%?"}
+        
+        CH -->|"Sim (Hit)"| U
+        
+        CH -->|"Não (Miss)"| SEARCH["Pesquisa de Similaridade<br/>(Top 15)"]
+        SEARCH --> D
         D -->|"Recupera Trechos Pai/Filho"| S
     end
 
-    subgraph RESPOSTA ["Geração e Entrega"]
+    subgraph RESPOSTA ["3. Geração e Entrega"]
         direction TB
-        S -->|"Prompt Parametrizado"| L["Google Gemini<br/>Flash 3"]
-        L -->|Streaming | U
+        S -->|"Prompt Parametrizado<br/>(Contexto Blindado)"| L["Google Gemini<br/>Flash 2.0"]
+        L -->|Streaming| U
         U -->|Feedback| F[("feedbacks.json")]
+        L -.->|Logs de Consumo| M[("usage_metrics.json")]
     end
 
     %% Conexões entre blocos
