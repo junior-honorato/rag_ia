@@ -114,6 +114,51 @@ def expand_query(client: genai.Client, query: str) -> str:
     except:
         return query
 
+def rerank_results(client: genai.Client, query: str, results: List[Dict[str, Any]], top_n: int = 5) -> List[Dict[str, Any]]:
+    """Usa o Gemini como um Re-ranker para filtrar os trechos mais relevantes entre os candidatos."""
+    if not results:
+        return []
+
+    # Prepara a lista de trechos para o modelo avaliar
+    snippets = ""
+    for idx, r in enumerate(results):
+        meta = r.get("metadata", {})
+        texto = meta.get("conteudo") or meta.get("parent_content", "Sem conteúdo")
+        snippets += f"\n--- TRECHO #{idx} (Fonte: {meta.get('original_file')}) ---\n{texto}\n"
+
+    prompt = f"""
+Sua tarefa é avaliar a relevância técnica de múltiplos trechos de documentos em relação à pergunta do usuário.
+Responda APENAS com uma lista JSON dos índices dos trechos que são VERDADEIRAMENTE ÚTEIS para responder à pergunta, em ordem de importância.
+Limite sua seleção aos {top_n} melhores.
+
+Pergunta do Usuário: {query}
+
+Lista de Trechos candidatos:{snippets}
+
+Retorno esperado (exemplo): [3, 0, 1]
+JSON:"""
+
+    try:
+        response = client.models.generate_content(
+            model=os.environ.get("GEMINI_MODEL_NAME"),
+            contents=prompt
+        )
+        # Tenta extrair a lista JSON da resposta (lidando com possíveis markdowns ```json)
+        raw_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+        selected_indices = json.loads(raw_text)
+        
+        # Reconstrói a lista baseada na seleção da IA
+        reranked = []
+        for i in selected_indices:
+            if isinstance(i, int) and 0 <= i < len(results):
+                reranked.append(results[i])
+        
+        print(f"[RAG Re-ranker] De {len(results)} candidatos, selecionei os {len(reranked)} melhores.")
+        return reranked[:top_n]
+    except Exception as e:
+        print(f"[RAG Re-ranker] Falha técnica, ignorando re-ranking: {e}")
+        return results[:top_n]
+
 def log_usage(usage):
     """Grava métricas de consumo de tokens em arquivo local."""
     if not usage: return
@@ -326,7 +371,10 @@ async def chat_agent(request: Request, req: ChatRequest):
             # --- ITEM 1: ENHANCED RETRIEVAL (TOP 15) ---
             resultados = db.search_similar(vector, top_k=15)
             
-            matches = resultados.get("matches", [])
+            matches_raw = resultados.get("matches", [])
+            
+            # --- ITEM 2: SEMANTIC RE-RANKING ---
+            matches = rerank_results(genai_client, req.query, matches_raw, top_n=7)
             
             chat_contents = []
             context_description = ""
