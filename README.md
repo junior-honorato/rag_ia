@@ -107,7 +107,7 @@ GEMINI_API_KEY="SUA_CHAVE_AQUI"
 GEMINI_MODEL_NAME="gemini-2.0-flash"
 
 # Chave interna para as sessões do Dashboard/API (Opcional)
-APP_INTERNAL_API_KEY="sicoob-internal-dev-key"
+APP_INTERNAL_API_KEY="app-internal-dev-key"
 ```
 
 ### Instalação
@@ -157,10 +157,10 @@ Para facilitar o deploy ou garantir um ambiente idêntico, você pode usar o Doc
 
 ```bash
 # 1. Construir a imagem
-docker build -t rag-ia-sicoob .
+docker build -t multimodal-rag-app .
 
 # 2. Rodar o container
-docker run -p 8000:8000 --env-file .env rag-ia-sicoob
+docker run -p 8000:8000 --env-file .env multimodal-rag-app
 ```
 
 ### Segurança e Limits

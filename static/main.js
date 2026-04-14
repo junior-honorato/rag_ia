@@ -1,7 +1,7 @@
 // =============================
 // LÓGICA DE INFO DO DOCUMENTO
 // =============================
-// A autenticação agora é feita via Cookies HttpOnly (session_sicoob_id) injetados pelo backend.
+// A autenticação agora é feita via Cookies HttpOnly (session_app_id) injetados pelo backend.
 
 window.sendFeedback = async function(btnEl, q, r, v) {
     const parent = btnEl.parentElement;
@@ -149,11 +149,11 @@ let chatHistory = [];
 
 // PERSISTÊNCIA LOCAL
 function saveHistoryToLocal() {
-    localStorage.setItem('sicoob_chat_history', JSON.stringify(chatHistory));
+    localStorage.setItem('app_chat_history', JSON.stringify(chatHistory));
 }
 
 function loadHistoryFromLocal() {
-    const saved = localStorage.getItem('sicoob_chat_history');
+    const saved = localStorage.getItem('app_chat_history');
     if (saved) {
         try {
             chatHistory = JSON.parse(saved);

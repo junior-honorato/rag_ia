@@ -1,4 +1,4 @@
-// A autenticação agora é feita via Cookies HttpOnly (session_sicoob_id) injetados pelo backend.
+// A autenticação agora é feita via Cookies HttpOnly (session_app_id) injetados pelo backend.
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
