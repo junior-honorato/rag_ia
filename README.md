@@ -21,6 +21,7 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 - **Botão Inteligente de Retentativa (Resubmit)**: O frontend se adapta a quebras de internet acionando automaticamente novas tentativas. Se houver total blackout, o usuário pode repassar a pergunta num click sem copiar-colar.
 - **Bypass de Resumo sob Demanda (Retry UI)**: Caso a IA sofra queda temporária na hora de gerar a Ementa Visão Geral do documento (pico 503), oferecemos na própria tela um botão "Reenviar geração do resumo" que acessa a engrenagem do ChromaDB por trás dos panos e aciona o LLM na hora.
 - **Dashboard de Observabilidade (Analytics)**: Interface gerencial dedicada para visualização de gráficos de consumo de tokens, volume de interações e métricas de satisfação (👍/👎).
+- **Camada de Governança (Redação de PII)**: Proteção automática que identifica e mascara dados sensíveis (CPFs, CNPJs, E-mails e Telefones) antes do envio para a nuvem, garantindo conformidade com a LGPD.
 - **Utilitário de Diagnóstico**: Inclui o script `debug_models.py` para validar a conectividade e os modelos disponíveis na sua chave de API em segundos.
 
 ## Arquitetura e Fluxo de Dados
@@ -75,6 +76,7 @@ graph TD
 
 * `server.py` — Código principal da API FastAPI (Backend). Responsável por receber o prompt, consultar o ChromaDB e chamar a API do Gemini.
 * `init_repo.py` — Script responsável por ler PDFs, vetorizar e inserir os embeddings na base local ChromaDB.
+* `governance.py` (Módulo) — Lógica de detecção e redação de PII (CPFs, Emails, Telefones) para governança e privacidade.
 * `extract_embeddings.py` (Módulo) — Funções auxiliares de integração com modelagem Embedding.
 * `chroma_client.py` (Módulo) — Classes e funções CRUD intermediárias do banco vetorial.
 * `static/` — HTML, CSS e JS do frontend.
@@ -175,7 +177,8 @@ Este Agente foi projetado para operar em ambientes corporativos, possuindo camad
 1. **Autenticação de Sessão (Cookies HttpOnly)**: Todas as chamadas entre o Frontend e o Backend são protegidas por cookies de sessão seguros (`HttpOnly`). Isso elimina chaves hardcoded no código JavaScript, impedindo que usuários mal-intencionados visualizem ou copiem credenciais via "Inspecionar Elemento".
 2. **Proteção contra XSS (DOMPurify)**: No frontend, todas as respostas do modelo Gemini passam por uma sanitização rigorosa utilizando a biblioteca `DOMPurify`. Isso garante que eventuais scripts ou códigos maliciosos injetados nos PDFs ou gerados pela IA não sejam executados no navegador do usuário.
 3. **Blindagem de Prompt (Guardrails)**: O `system_prompt` possui diretrizes estritas de "blindagem" para impedir ataques de *Prompt Injection*. A IA está instruída a ignorar tentativas de desvio de conduta (ex: "ignore all previous instructions") e a nunca revelar suas instruções internas.
-4. **Isolamento de Dados**: Os arquivos de PDF originais, o banco vetorial e os logs de métricas são mantidos localmente e estão configurados no `.gitignore` para nunca serem expostos no repositório público.
+4. **Governança de Dados e Redação de PII (LGPD)**: Camada de segurança que detecta padrões de dados sensíveis (PII) e os substitui por máscaras (ex: `[CPF_REDACTED]`) antes que qualquer informação de usuário ou documento seja enviada para a API do Google Gemini.
+5. **Isolamento de Dados**: Os arquivos de PDF originais, o banco vetorial e os logs de métricas são mantidos localmente e estão configurados no `.gitignore` para nunca serem expostos no repositório público.
 
 ## Solucionando Problemas (FAQ)
 

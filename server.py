@@ -17,6 +17,7 @@ from slowapi.errors import RateLimitExceeded
 
 from extract_embeddings import get_embedding
 from chroma_client import ChromaManager
+from governance import redact_text
 
 load_dotenv()
 
@@ -348,6 +349,10 @@ async def chat_agent(request: Request, req: ChatRequest):
 
             # --- ITEM 1: QUERY EXPANSION ---
             search_query = expand_query(genai_client, req.query)
+            # Aplicamos redação na query original para o Prompter (segurança Gemini)
+            # Mas mantemos a search_query (que pode conter termos técnicos do doc) para a busca
+            user_query_redacted = redact_text(req.query)
+            print(f"[Governança] Query Protegida: {user_query_redacted}")
             print(f"[RAG Evolution] Original: {req.query} | Expanded: {search_query}")
                 
             # Pesquisa os chunks com a query expandida
@@ -386,12 +391,13 @@ async def chat_agent(request: Request, req: ChatRequest):
                 # Suporte à nova Arquitetura Pai-Filho (Hydrated RAG)
                 if meta.get("tipo") == "child_chunk" and meta.get("parent_id") not in seen_parents:
                     seen_parents.add(meta.get("parent_id"))
-                    parent_text = meta.get('parent_content', 'Conteúdo Vazio')
+                    parent_text = redact_text(meta.get('parent_content', 'Conteúdo Vazio'))
                     context_description += f"\n\n[Trecho Completo do Documento {meta.get('original_file')}]:\n{parent_text}"
                 
                 # Fallback de compatibilidade (para banco legado)
                 elif meta.get("tipo") == "chunk" and "conteudo" in meta:
-                    context_description += f"\n\n[Trecho do Documento {meta.get('original_file')}]:\n{meta['conteudo']}"
+                    conteudo_redacted = redact_text(meta['conteudo'])
+                    context_description += f"\n\n[Trecho do Documento {meta.get('original_file')}]:\n{conteudo_redacted}"
                     
             system_prompt = f"""
 Você é a "Seguradora", uma assistente corporativa de elite.
@@ -424,10 +430,10 @@ IMPORTANTE (DIRETRIZES DE SEGURANÇA):
                 if current_role == last_role:
                     # Concatena com a mensagem anterior da mesma role para evitar Crash 400 sem perder contexto
                     if chat_contents:
-                        chat_contents[-1]["parts"][0]["text"] += "\n" + msg.get("content", "")
+                        chat_contents[-1]["parts"][0]["text"] += "\n" + redact_text(msg.get("content", ""))
                     continue
                 
-                chat_contents.append({"role": current_role, "parts": [{"text": msg.get("content", "")}]})
+                chat_contents.append({"role": current_role, "parts": [{"text": redact_text(msg.get("content", ""))}]})
                 last_role = current_role
                 
             # A pergunta atual que será inserida abaixo sempre tem a role "user"
@@ -436,8 +442,8 @@ IMPORTANTE (DIRETRIZES DE SEGURANÇA):
                 prev_user_msg = chat_contents.pop()
                 req.query = prev_user_msg["parts"][0]["text"] + "\n\n" + req.query
             
-            # Adiciona a pergunta atual
-            chat_contents.append({"role": "user", "parts": [{"text": req.query}]})
+            # Adiciona a pergunta atual (Redigida)
+            chat_contents.append({"role": "user", "parts": [{"text": user_query_redacted}]})
             
             # Configura as instruções do sistema
             config = types.GenerateContentConfig(
