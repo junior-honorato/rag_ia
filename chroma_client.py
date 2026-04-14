@@ -133,3 +133,22 @@ class ChromaManager:
         except Exception as e:
             print(f"Erro ao obter parent_content: {e}")
             return ""
+
+    def list_indexed_files(self):
+        """Retorna uma lista de nomes de arquivos únicos indexados no ChromaDB."""
+        if not self.collection:
+            self.ensure_index_exists()
+            
+        try:
+            # Buscamos apenas os metadatas para economizar banda/memória
+            results = self.collection.get(include=["metadatas"])
+            filenames = set()
+            if results and results.get("metadatas"):
+                for meta in results["metadatas"]:
+                    fname = meta.get("original_file")
+                    if fname:
+                        filenames.add(fname)
+            return sorted(list(filenames))
+        except Exception as e:
+            print(f"Erro ao listar arquivos no Chroma: {e}")
+            return []

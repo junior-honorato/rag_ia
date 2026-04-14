@@ -154,11 +154,21 @@ def submit_feedback(payload: FeedbackRequest):
 
 @app.get("/api/documents", dependencies=[Depends(get_api_key)])
 def get_documents_list():
+    """Retorna a lista de documentos indexados consultando o ChromaDB e integrando com os resumos locais."""
+    indexed_files = db.list_indexed_files()
+    
     summaries_path = os.path.join("repositorio", "summaries.json")
+    summaries = {}
     if os.path.exists(summaries_path):
         with open(summaries_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+            summaries = json.load(f)
+            
+    # Filtramos/Preparamos o retorno baseado no que está realimente no banco vetorial
+    result = {}
+    for fname in indexed_files:
+        result[fname] = summaries.get(fname, {"summary": "Resumo não disponível localmente.", "chunk_count": 0})
+        
+    return result
 
 @app.put("/api/documents/{filename}/summary", dependencies=[Depends(get_api_key)])
 def update_document_summary(filename: str, payload: SummaryUpdateBlock):

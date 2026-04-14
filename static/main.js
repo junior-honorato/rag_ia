@@ -19,6 +19,30 @@ window.sendFeedback = async function(btnEl, q, r, v) {
     }
 }
 
+window.copyToClipboard = async function(btnEl, text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        
+        // Feedback Visual (Tooltip)
+        const tooltip = document.createElement('span');
+        tooltip.className = 'copy-tooltip';
+        tooltip.innerText = 'Copiado!';
+        btnEl.appendChild(tooltip);
+        
+        // Trigger animação
+        setTimeout(() => tooltip.classList.add('show'), 10);
+        
+        // Remove após 2 segundos
+        setTimeout(() => {
+            tooltip.classList.remove('show');
+            setTimeout(() => tooltip.remove(), 300);
+        }, 2000);
+        
+    } catch (err) {
+        console.error('Falha ao copiar texto: ', err);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const res = await fetch('/api/documents');
@@ -169,6 +193,22 @@ function appendMessage(sender, text, skipSave = false) {
     const div = document.createElement('div');
     div.className = `message ${sender}`;
     div.innerHTML = renderText(text);
+    
+    // Se for bot, adiciona botão de cópia básico (para mensagens iniciais/histórico sem fontes detalhadas no metadado restrito)
+    if (sender === 'bot') {
+        const copyBtn = document.createElement('div');
+        copyBtn.style.marginTop = '0.8rem';
+        copyBtn.style.borderTop = '1px dashed var(--glass-border)';
+        copyBtn.style.paddingTop = '0.5rem';
+        const escapedText = text.replace(/['"`]/g, "\\$1").replace(/\n/g, "\\n");
+        copyBtn.innerHTML = `
+            <button class="btn-copy" onclick="copyToClipboard(this, \`${escapedText}\`)">
+                📋 Copiar Resposta
+            </button>
+        `;
+        div.appendChild(copyBtn);
+    }
+
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
     
@@ -319,11 +359,27 @@ chatForm.addEventListener('submit', async (e) => {
             tempDiv.innerHTML = finalHtml;
             const plainResponse = (tempDiv.innerText || "").substring(0, 120).replace(/(['"\n])/g, " ");
             
+            // Texto formatado para cópia (Resposta + Fontes)
+            let textForCopy = fullResponse + "\n\n--- FONTES CONSULTADAS ---\n";
+            matches.forEach(m => {
+                textForCopy += `\n- [${m.metadata.original_file}]: "${m.metadata.conteudo}"`;
+            });
+            const escapedCopyText = textForCopy.replace(/[`]/g, "\\`").replace(/[$]/g, "\\$");
+
             finalHtml += `
                 <div class="feedback-actions">
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">Esta resposta local foi útil?</span>
-                    <button class="btn-feedback" onclick="sendFeedback(this, '${currentQ}', '${plainResponse}...', 1)">👍 Sim</button>
-                    <button class="btn-feedback" onclick="sendFeedback(this, '${currentQ}', '${plainResponse}...', -1)">👎 Não</button>
+                    <div style="display:flex; flex-direction:column; gap:0.8rem; width:100%">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Esta resposta local foi útil?</span>
+                            <button class="btn-copy" onclick="copyToClipboard(this, \`${escapedCopyText}\`)">
+                                📋 Copiar com Fontes
+                            </button>
+                        </div>
+                        <div>
+                            <button class="btn-feedback" onclick="sendFeedback(this, '${currentQ}', '${plainResponse}...', 1)">👍 Sim</button>
+                            <button class="btn-feedback" onclick="sendFeedback(this, '${currentQ}', '${plainResponse}...', -1)">👎 Não</button>
+                        </div>
+                    </div>
                 </div>
             `;
             

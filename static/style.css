@@ -266,3 +266,57 @@ p { margin-bottom: 1.5rem; color: var(--text-muted); }
     background: var(--glass-border);
     color: white;
 }
+
+/* BOTÃO DE CÓPIA E TOOLTIP */
+.btn-copy {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.btn-copy:hover {
+    background: rgba(0, 174, 157, 0.2);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.copy-tooltip {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary);
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 100;
+}
+
+.copy-tooltip.show {
+    opacity: 1;
+}
+
+.copy-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -4px;
+    border-width: 4px;
+    border-style: solid;
+    border-color: var(--primary) transparent transparent transparent;
+}
