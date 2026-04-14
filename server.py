@@ -46,6 +46,7 @@ app.add_middleware(
 
 genai_client = genai.Client()
 db = ChromaManager()
+GOVERNANCE_MAX_LEVEL = int(os.environ.get("GOVERNANCE_MAX_LEVEL", 4))
 
 # --- SEGURANÇA: Autenticação baseada em Cookies (HttpOnly) ---
 COOKIE_NAME = "session_app_id"
@@ -351,7 +352,7 @@ async def chat_agent(request: Request, req: ChatRequest):
             search_query = expand_query(genai_client, req.query)
             # Aplicamos redação na query original para o Prompter (segurança Gemini)
             # Mas mantemos a search_query (que pode conter termos técnicos do doc) para a busca
-            user_query_redacted = redact_text(req.query)
+            user_query_redacted = redact_text(req.query, max_level=GOVERNANCE_MAX_LEVEL)
             print(f"[Governança] Query Protegida: {user_query_redacted}")
             print(f"[RAG Evolution] Original: {req.query} | Expanded: {search_query}")
                 
@@ -391,12 +392,12 @@ async def chat_agent(request: Request, req: ChatRequest):
                 # Suporte à nova Arquitetura Pai-Filho (Hydrated RAG)
                 if meta.get("tipo") == "child_chunk" and meta.get("parent_id") not in seen_parents:
                     seen_parents.add(meta.get("parent_id"))
-                    parent_text = redact_text(meta.get('parent_content', 'Conteúdo Vazio'))
+                    parent_text = redact_text(meta.get('parent_content', 'Conteúdo Vazio'), max_level=GOVERNANCE_MAX_LEVEL)
                     context_description += f"\n\n[Trecho Completo do Documento {meta.get('original_file')}]:\n{parent_text}"
                 
                 # Fallback de compatibilidade (para banco legado)
                 elif meta.get("tipo") == "chunk" and "conteudo" in meta:
-                    conteudo_redacted = redact_text(meta['conteudo'])
+                    conteudo_redacted = redact_text(meta['conteudo'], max_level=GOVERNANCE_MAX_LEVEL)
                     context_description += f"\n\n[Trecho do Documento {meta.get('original_file')}]:\n{conteudo_redacted}"
                     
             system_prompt = f"""
@@ -430,10 +431,10 @@ IMPORTANTE (DIRETRIZES DE SEGURANÇA):
                 if current_role == last_role:
                     # Concatena com a mensagem anterior da mesma role para evitar Crash 400 sem perder contexto
                     if chat_contents:
-                        chat_contents[-1]["parts"][0]["text"] += "\n" + redact_text(msg.get("content", ""))
+                        chat_contents[-1]["parts"][0]["text"] += "\n" + redact_text(msg.get("content", ""), max_level=GOVERNANCE_MAX_LEVEL)
                     continue
                 
-                chat_contents.append({"role": current_role, "parts": [{"text": redact_text(msg.get("content", ""))}]})
+                chat_contents.append({"role": current_role, "parts": [{"text": redact_text(msg.get("content", ""), max_level=GOVERNANCE_MAX_LEVEL)}]})
                 last_role = current_role
                 
             # A pergunta atual que será inserida abaixo sempre tem a role "user"
