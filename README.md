@@ -35,37 +35,43 @@ graph TD
     style B fill:#34a853,stroke:#fff,color:#fff
     style C fill:#ea4335,stroke:#fff,color:#fff
     style D fill:#fbbc05,stroke:#fff,color:#333
+    style S fill:#6c5ce7,stroke:#fff,color:#fff
+    style CH fill:#ff7675,stroke:#fff,color:#fff
 
     subgraph INGESTÃO ["1. Processo de Ingestão (Offline)"]
         direction TB
         A["Documentos (PDFs)"] -->|PDFLoader| B["Fatiamento Hierárquico<br/>(Pai e Filho)"]
         B -->|"Geração de Vetores"| C["Google Gemini<br/>Embeddings"]
         C -->|Persistência| D[("ChromaDB<br/>(Base Vetorial Local)")]
-        B -.->|Metadados| D
     end
 
-    subgraph CONSULTA ["2. Interface e Motor RAG (Online)"]
+    subgraph CONSULTA ["2. Fluxo de Decisão e Busca (Cost-Aware)"]
         direction TB
-        U["Usuário (Frontend)"] -->|1. Pergunta| S["FastAPI (server.py)"]
-        
-        S -->|2. Query Expansion| QE["Gemini: Otimiza/Reescreve<br/>a Pergunta"]
-        QE -->|3. Conversão p/ Vetor| GE["Google Gemini<br/>Embeddings"]
-        
-        GE -->|4. Consulta Cache| CH{"Similaridade<br/>acima de 96%?"}
+        U["Usuário (Frontend)"] -->|1. Request| S["FastAPI (Controlado por Sessão)"]
+        S -->|2. Embedding Inicial| GE["Gemini Embeddings"]
+        GE -->|3. Cache Check| CH{"Similaridade > 96%?"}
         
         CH -->|"Sim (Hit)"| U
         
-        CH -->|"Não (Miss)"| SEARCH["Pesquisa de Similaridade<br/>(Top 15)"]
+        CH -->|"Não (Miss)"| ECO{"Modo Econômico?"}
+        
+        ECO -->|"Não"| QE["Query Expansion<br/>(Melhora Precisão)"]
+        ECO -->|"Sim"| SEARCH["Busca Semântica<br/>(Top 15)"]
+        
+        QE --> SEARCH
         SEARCH --> D
-        D -->|"Recupera Trechos Pai/Filho"| S
     end
 
-    subgraph RESPOSTA ["3. Geração e Entrega"]
+    subgraph RESPOSTA ["3. Re-ranking e Geração"]
         direction TB
-        S -->|"Prompt Parametrizado<br/>(Contexto Blindado)"| L["Google Gemini<br/>Flash 2.0"]
-        L -->|Streaming| U
-        U -->|Feedback| F[("feedbacks.json")]
-        L -.->|Logs de Consumo| M[("usage_metrics.json")]
+        D -->|Busca Bruta| CONF{"Confiança > 0.85?"}
+        
+        CONF -->|"Não"| RR["Gemini Re-ranker<br/>(Filtro Semântico)"]
+        CONF -->|"Sim (Pula)"| L["Google Gemini<br/>Flash 2.0 Streaming"]
+        
+        RR --> L
+        L --> U
+        L -.->|Métricas| M[("uso_e_feedback.json")]
     end
 
     %% Conexões entre blocos
