@@ -27,9 +27,20 @@ if not os.environ.get("GEMINI_API_KEY"):
 app = FastAPI(title="Agente Especialista Restrito")
 
 # --- CONFIGURAÇÃO DE RATE LIMITING (SlowAPI) ---
-limiter = Limiter(key_func=get_remote_address)
+def get_session_id(request: Request):
+    """Retorna o Cookie de sessão como chave para o Rate Limit para evitar bypass por IP."""
+    return request.cookies.get(COOKIE_NAME, get_remote_address(request))
+
+limiter = Limiter(key_func=get_session_id)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Retorna uma resposta JSON amigável para o Rate Limit."""
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "LIMITE_DE_REQUISICOES", "message": "Você atingiu o limite de mensagens permitidas por minuto. Aguarde um instante antes de tentar novamente."}
+    )
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
 # --- CONFIGURAÇÃO DE SEGURANÇA: CORS ---
 # Como usamos allow_credentials=True para o Cookie HttpOnly, não podemos usar "*" em allow_origins.
@@ -47,6 +58,8 @@ app.add_middleware(
 genai_client = genai.Client()
 db = ChromaManager()
 GOVERNANCE_MAX_LEVEL = int(os.environ.get("GOVERNANCE_MAX_LEVEL", 4))
+ECONOMY_MODE = os.environ.get("ECONOMY_MODE", "false").lower() == "true"
+RERANK_THRESHOLD = float(os.environ.get("RERANK_THRESHOLD", 0.85))
 
 # --- SEGURANÇA: Autenticação baseada em Cookies (HttpOnly) ---
 COOKIE_NAME = "session_app_id"
@@ -180,7 +193,8 @@ def log_usage(usage):
         json.dump(logs[-100:], f, indent=4)
 
 @app.post("/api/feedback", dependencies=[Depends(get_api_key)])
-def submit_feedback(payload: FeedbackRequest):
+@limiter.limit("20/minute")
+def submit_feedback(payload: FeedbackRequest, request: Request):
     feedbacks_path = os.path.join("repositorio", "feedbacks.json")
     feedbacks = []
     if os.path.exists(feedbacks_path):
@@ -200,9 +214,14 @@ def submit_feedback(payload: FeedbackRequest):
     return {"status": "success"}
 
 @app.get("/api/documents", dependencies=[Depends(get_api_key)])
-def get_documents_list():
-    """Retorna a lista de documentos indexados consultando o ChromaDB e integrando com os resumos locais."""
-    indexed_files = db.list_indexed_files()
+@limiter.limit("30/minute")
+def get_documents_list(request: Request, page: int = 1, page_size: int = 10):
+    """Retorna a lista paginada de documentos indexados consultando o ChromaDB."""
+    offset = (page - 1) * page_size
+    db_result = db.list_indexed_files(limit=page_size, offset=offset)
+    
+    indexed_files = db_result["files"]
+    total_count = db_result["total_count"]
     
     summaries_path = os.path.join("repositorio", "summaries.json")
     summaries = {}
@@ -210,15 +229,22 @@ def get_documents_list():
         with open(summaries_path, "r", encoding="utf-8") as f:
             summaries = json.load(f)
             
-    # Filtramos/Preparamos o retorno baseado no que está realimente no banco vetorial
-    result = {}
+    # Filtramos/Preparamos o retorno baseado no que está realmente no banco vetorial
+    docs_data = {}
     for fname in indexed_files:
-        result[fname] = summaries.get(fname, {"summary": "Resumo não disponível localmente.", "chunk_count": 0})
+        docs_data[fname] = summaries.get(fname, {"summary": "Resumo não disponível localmente.", "chunk_count": 0})
         
-    return result
+    return {
+        "documents": docs_data,
+        "total_count": total_count,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total_count + page_size - 1) // page_size
+    }
 
 @app.put("/api/documents/{filename}/summary", dependencies=[Depends(get_api_key)])
-def update_document_summary(filename: str, payload: SummaryUpdateBlock):
+@limiter.limit("10/minute")
+def update_document_summary(filename: str, payload: SummaryUpdateBlock, request: Request):
     summaries_path = os.path.join("repositorio", "summaries.json")
     if os.path.exists(summaries_path):
         with open(summaries_path, "r", encoding="utf-8") as f:
@@ -235,7 +261,8 @@ def update_document_summary(filename: str, payload: SummaryUpdateBlock):
     return {"status": "error", "message": "Banco não encontrado"}, 404
 
 @app.post("/api/documents/{filename}/retry_summary", dependencies=[Depends(get_api_key)])
-def retry_document_summary(filename: str):
+@limiter.limit("5/minute")
+def retry_document_summary(filename: str, request: Request):
     # 1. Recuperar chunks de Contexto via ChromaDB
     texto_contexto = db.get_parent_content_by_file(filename, max_chars=5000)
     if not texto_contexto:
@@ -275,7 +302,8 @@ def retry_document_summary(filename: str):
     return {"status": "success", "summary": resumo}
 
 @app.get("/api/stats", dependencies=[Depends(get_api_key)])
-def get_dashboard_stats():
+@limiter.limit("20/minute")
+def get_dashboard_stats(request: Request):
     """Consolida métricas de uso e feedbacks para o Dashboard."""
     from datetime import datetime
     
@@ -348,39 +376,47 @@ async def chat_agent(request: Request, req: ChatRequest):
             if not req.query.strip():
                 return {"response": ""}
 
-            # --- ITEM 1: QUERY EXPANSION ---
-            search_query = expand_query(genai_client, req.query)
-            # Aplicamos redação na query original para o Prompter (segurança Gemini)
-            # Mas mantemos a search_query (que pode conter termos técnicos do doc) para a busca
-            user_query_redacted = redact_text(req.query, max_level=GOVERNANCE_MAX_LEVEL)
-            print(f"[Governança] Query Protegida: {user_query_redacted}")
-            print(f"[RAG Evolution] Original: {req.query} | Expanded: {search_query}")
-                
-            # Pesquisa os chunks com a query expandida
-            vector = get_embedding(genai_client, text=search_query)
+            # --- PASSO 1: CALCULA EMBEDDING E VERIFICA CACHE (ZERO TOKEN COST) ---
+            query_vector = get_embedding(genai_client, text=req.query)
             
-            # --- START SEMANTIC CACHE ---
-            cached_answer = db.check_cache(vector, threshold=0.04) # 96% similarity
+            cached_answer = db.check_cache(query_vector, threshold=0.04) # 96% similarity
             if cached_answer:
-                # Retorna a resposta engavetada instantaneamente
+                print(f"[RAG Protection] Cache Hit! Economizando 100% de tokens para esta consulta.")
                 def cache_stream_generator():
-                    # matches pode conter flag de hit no cache
-                    yield json.dumps({"type": "matches", "matches": [{"metadata": {"original_file": "Semantic Cache Hit", "conteudo": "Resposta recuperada direto da memória do cache semântico economizando tokens."}, "score": 1.0}]}) + "\n"
-                    # Fatiar para simular a digitação rápida
+                    yield json.dumps({"type": "matches", "matches": [{"metadata": {"original_file": "Semantic Cache Hit", "conteudo": "Resposta recuperada do cache semântico."}, "score": 1.0}]}) + "\n"
                     chunk_size = 40
                     for i in range(0, len(cached_answer), chunk_size):
                         yield json.dumps({"type": "chunk", "text": cached_answer[i:i+chunk_size]}) + "\n"
                         time.sleep(0.015) 
                 return StreamingResponse(cache_stream_generator(), media_type="application/x-ndjson")
-            # --- END SEMANTIC CACHE ---
             
-            # --- ITEM 1: ENHANCED RETRIEVAL (TOP 15) ---
-            resultados = db.search_similar(vector, top_k=15)
-            
+            # --- PASSO 2: QUERY EXPANSION (CONDICIONAL) ---
+            search_query = req.query
+            if not ECONOMY_MODE:
+                search_query = expand_query(genai_client, req.query)
+                # Atualiza vetor se houve expansão
+                query_vector = get_embedding(genai_client, text=search_query)
+                print(f"[RAG Evolution] Query Expandida: {search_query}")
+            else:
+                print(f"[RAG Economy] Modo Econômico Ativo: Pulando Query Expansion.")
+                
+            user_query_redacted = redact_text(req.query, max_level=GOVERNANCE_MAX_LEVEL)
+            print(f"[Governança] Query Protegida: {user_query_redacted}")
+                
+            # --- PASSO 3: BUSCA SEMÂNTICA (TOP 15) ---
+            resultados = db.search_similar(query_vector, top_k=15)
             matches_raw = resultados.get("matches", [])
             
-            # --- ITEM 2: SEMANTIC RE-RANKING ---
-            matches = rerank_results(genai_client, req.query, matches_raw, top_n=7)
+            # --- PASSO 4: SEMANTIC RE-RANKING (CONDICIONAL) ---
+            top_score = matches_raw[0].get("score", 0) if matches_raw else 0
+            
+            if not ECONOMY_MODE and top_score < RERANK_THRESHOLD:
+                print(f"[RAG Protection] Confiança baixa ({top_score:.2f} < {RERANK_THRESHOLD}). Acionando Re-ranker.")
+                matches = rerank_results(genai_client, req.query, matches_raw, top_n=7)
+            else:
+                msg = "Modo Econômico" if ECONOMY_MODE else f"Confiança alta ({top_score:.2f} >= {RERANK_THRESHOLD})"
+                print(f"[RAG Protection] {msg}. Pulando Re-ranker.")
+                matches = matches_raw[:7]
             
             chat_contents = []
             context_description = ""
@@ -477,7 +513,7 @@ IMPORTANTE (DIRETRIZES DE SEGURANÇA):
                     error_str = str(stream_error)
                     yield json.dumps({"type": "error", "detail": error_str}) + "\n"
 
-            return StreamingResponse(stream_generator(vector, req.query), media_type="application/x-ndjson")
+            return StreamingResponse(stream_generator(query_vector, req.query), media_type="application/x-ndjson")
 
         except Exception as e:
             error_str = str(e)

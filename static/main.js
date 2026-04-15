@@ -43,53 +43,85 @@ window.copyToClipboard = async function(btnEl, text) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+let currentDocPage = 1;
+
+async function loadDocuments(page = 1) {
+    const docLoader = document.getElementById('docLoader');
+    const docContent = document.getElementById('docContent');
+    const docPagination = document.getElementById('docPagination');
+    
+    docLoader.style.display = 'block';
+    docContent.style.display = 'none';
+    docPagination.style.display = 'none';
+    
     try {
-        const res = await fetch('/api/documents');
+        const res = await fetch(`/api/documents?page=${page}&page_size=10`);
         const data = await res.json();
         
-        document.getElementById('docLoader').style.display = 'none';
-        const docContent = document.getElementById('docContent');
+        currentDocPage = data.page;
+        
+        docLoader.style.display = 'none';
         docContent.style.display = 'flex';
         docContent.style.flexDirection = 'column';
         docContent.innerHTML = '';
         
-        const files = Object.keys(data);
+        const files = Object.keys(data.documents);
         if(files.length === 0) {
-            docContent.innerHTML = '<p style="color:var(--text-muted)">Nenhum PDF encontrado na base de dados.</p>';
-            return;
-        }
-
-        for(const file of files) {
-            const info = data[file];
-            const div = document.createElement('div');
-            div.style.marginBottom = '1.5rem';
-            let sumRaw = info.summary || "";
-            let retryBtn = "";
-            if (sumRaw.includes("Resumo temporariamente indisponível")) {
-                retryBtn = `<button onclick="retryPdfSummary('${file}')" style="background:none; border:none; color:var(--primary-glow); cursor:pointer; font-size:0.85rem; padding:0.2rem; margin-right: 0.5rem;">[🔄 Reenviar geração do resumo]</button>`;
+            docContent.innerHTML = '<p style="color:var(--text-muted)">Nenhum documento encontrado nesta página.</p>';
+        } else {
+            for(const file of files) {
+                const info = data.documents[file];
+                const div = document.createElement('div');
+                div.style.marginBottom = '1.5rem';
+                let sumRaw = info.summary || "";
+                let retryBtn = "";
+                if (sumRaw.includes("Resumo temporariamente indisponível")) {
+                    retryBtn = `<button onclick="retryPdfSummary('${file}')" style="background:none; border:none; color:var(--primary-glow); cursor:pointer; font-size:0.85rem; padding:0.2rem; margin-right: 0.5rem;">[🔄 Reenviar geração do resumo]</button>`;
+                }
+                
+                div.innerHTML = `
+                    <div class="file-badge" style="font-size:0.95rem; padding:0.5rem 1rem; margin-bottom:0.5rem;">📋 ${file}</div>
+                    <h3 style="font-size: 1.05rem; margin: 1rem 0 0.5rem 0; color:var(--text-main); display:flex; justify-content:space-between; align-items:center;">
+                        Visão Geral
+                    </h3>
+                    <p id="summary-${file}" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); text-align: justify;">
+                        ${sumRaw.replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>")}
+                    </p>
+                    <div style="margin-top: 0.5rem">${retryBtn}</div>
+                    <hr style="border:none; border-top:1px dashed rgba(255,255,255,0.1); margin-top: 1.5rem;">
+                `;
+                docContent.appendChild(div);
             }
-            
-            div.innerHTML = `
-                <div class="file-badge" style="font-size:0.95rem; padding:0.5rem 1rem; margin-bottom:0.5rem;">📋 ${file}</div>
-
-                <h3 style="font-size: 1.05rem; margin: 1rem 0 0.5rem 0; color:var(--text-main); display:flex; justify-content:space-between; align-items:center;">
-                    Visão Geral
-                    <div>
-                        ${retryBtn}
-
-                    </div>
-                </h3>
-                <p id="summary-${file}" style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); text-align: justify;">
-                    ${sumRaw.replace(/\n\n/g, "<br><br>").replace(/\n/g, "<br>")}
-                </p>
-                <hr style="border:none; border-top:1px dashed rgba(255,255,255,0.1); margin-top: 1.5rem;">
-            `;
-            docContent.appendChild(div);
         }
+        
+        renderPagination(data);
+        
     } catch (err) {
-        document.getElementById('docLoader').innerHTML = `<span style="color:#ef4444">Falha ao buscar Banco Vetorial: ${err.message}</span>`;
+        docLoader.innerHTML = `<span style="color:#ef4444">Falha ao buscar Banco Vetorial: ${err.message}</span>`;
     }
+}
+
+function renderPagination(data) {
+    const container = document.getElementById('docPagination');
+    if (data.total_pages <= 1) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'flex';
+    container.innerHTML = `
+        <button id="prevPage" class="btn-copy" ${data.page <= 1 ? 'disabled style="opacity:0.3; cursor:default"' : ''} onclick="loadDocuments(${data.page - 1})">
+            ◀ Anterior
+        </button>
+        <span style="font-size: 0.85rem; color: var(--text-muted)">Página ${data.page} de ${data.total_pages}</span>
+        <button id="nextPage" class="btn-copy" ${data.page >= data.total_pages ? 'disabled style="opacity:0.3; cursor:default"' : ''} onclick="loadDocuments(${data.page + 1})">
+            Próximo ▶
+        </button>
+    `;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadDocuments(1);
 });
 
 window.editSummary = async function(filename) {
@@ -269,8 +301,11 @@ chatForm.addEventListener('submit', async (e) => {
                     const errData = await res.json();
                     errorDetail = errData.detail || errorDetail;
                 } catch(e) {}
+                if (errorDetail === "LIMITE_DE_REQUISICOES") {
+                    throw new Error("⏳ Calma! Você enviou muitas mensagens rápido demais. Aguarde uns segundos e tente novamente.");
+                }
                 if (res.status === 429 || errorDetail === "LIMITE_DE_TOKENS") {
-                    throw new Error("⚠️ O limite da API Gemini foi atingido (Falta de tokens/Quota excedida).");
+                    throw new Error("⚠️ O limite da API Gemini foi atingido (Falta de tokens ou Quota excedida na nuvem).");
                 }
                 if (res.status === 503 || errorDetail.includes("503") || errorDetail.includes("UNAVAILABLE") || errorDetail.includes("high demand")) {
                     throw new Error("⚠️ Ops! Nossos servidores (Google Gemini) estão sob altíssima demanda.");

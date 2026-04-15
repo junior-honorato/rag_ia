@@ -10,6 +10,7 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 - **Hierarchical RAG (Parent-Child Retrieval)**: A ingestão fatiará o conteúdo em dois níveis. Pequenos recortes geram precisão de Embeddings para busca no `ChromaDB`, mas na hora do Prompt, injetamos Pedaços Maiores ("Textos Pais") para passar contexto pleno ao LLM.
 - **Expansão de Consultas (Query Expansion)**: O sistema utiliza o Gemini para reescrever e otimizar a pergunta original do usuário, aumentando drasticamente a taxa de acerto na recuperação semântica.
 - **Cache Semântico Vetorial**: Consultas com mais de 96% de intencionalidade semântica igual a respostas passadas pulam o acionamento custoso do Google Gemini e são retornadas imediatamente do cache!
+- **Modo Econômico Inteligente**: Parametrização para reduzir o consumo de tokens ao pular etapas de Expansão de Query e Re-ranking baseado em confiança matemática ou configuração global.
 - **Auditoria de Feedback & Métricas**: Balões trazem os amigáveis 👍/👎 ao final. O comportamento alimenta o arquivo `feedbacks.json` para calibragem.
 - **Observabilidade de Consumo**: Rastreamento automático de tokens (Prompt, Candidates e Total) gravados em `usage_metrics.json` para controle de custos e performance.
 - **Busca Profunda (Top 15 Retrieval)**: O motor realiza o ranking dos 15 trechos mais relevantes, garantindo que nenhum fragmento crítico de contexto seja ignorado pela IA.
@@ -22,6 +23,7 @@ A Interface Gráfica permite conversar de modo fácil enquanto a Inteligência A
 - **Bypass de Resumo sob Demanda (Retry UI)**: Caso a IA sofra queda temporária na hora de gerar a Ementa Visão Geral do documento (pico 503), oferecemos na própria tela um botão "Reenviar geração do resumo" que acessa a engrenagem do ChromaDB por trás dos panos e aciona o LLM na hora.
 - **Dashboard de Observabilidade (Analytics)**: Interface gerencial dedicada para visualização de gráficos de consumo de tokens, volume de interações e métricas de satisfação (👍/👎).
 - **Camada de Governança (Redação de PII)**: Proteção automática que identifica e mascara dados sensíveis (CPFs, CNPJs, E-mails e Telefones) antes do envio para a nuvem, garantindo conformidade com a LGPD.
+- **Paginação de Documentos (Anti-OOM)**: A listagem de documentos fonte na interface agora é paginada (10 por página), prevenindo travamentos de memória em repositórios com alta densidade de arquivos.
 - **Utilitário de Diagnóstico**: Inclui o script `debug_models.py` para validar a conectividade e os modelos disponíveis na sua chave de API em segundos.
 
 ## Arquitetura e Fluxo de Dados
@@ -110,6 +112,10 @@ GEMINI_MODEL_NAME="gemini-2.0-flash"
 
 # Chave interna para as sessões do Dashboard/API (Opcional)
 APP_INTERNAL_API_KEY="app-internal-dev-key"
+
+# Proteção de Créditos (Economia de Tokens) - Opcional
+ECONOMY_MODE="true"        # Se true, desativa Query Expansion e Re-ranking (Padrão: true)
+RERANK_THRESHOLD="0.85"    # Pula o re-ranking se a similaridade inicial for maior que esta (Padrão: 0.85)
 ```
 
 ### Instalação
@@ -175,10 +181,12 @@ docker run -p 8000:8000 --env-file .env multimodal-rag-app
 Este Agente foi projetado para operar em ambientes corporativos, possuindo camadas de segurança ativas:
 
 1. **Autenticação de Sessão (Cookies HttpOnly)**: Todas as chamadas entre o Frontend e o Backend são protegidas por cookies de sessão seguros (`HttpOnly`). Isso elimina chaves hardcoded no código JavaScript, impedindo que usuários mal-intencionados visualizem ou copiem credenciais via "Inspecionar Elemento".
-2. **Proteção contra XSS (DOMPurify)**: No frontend, todas as respostas do modelo Gemini passam por uma sanitização rigorosa utilizando a biblioteca `DOMPurify`. Isso garante que eventuais scripts ou códigos maliciosos injetados nos PDFs ou gerados pela IA não sejam executados no navegador do usuário.
-3. **Blindagem de Prompt (Guardrails)**: O `system_prompt` possui diretrizes estritas de "blindagem" para impedir ataques de *Prompt Injection*. A IA está instruída a ignorar tentativas de desvio de conduta (ex: "ignore all previous instructions") e a nunca revelar suas instruções internas.
-4. **Governança de Dados e Redação de PII (LGPD)**: Camada de segurança que detecta padrões de dados sensíveis (PII) e os substitui por máscaras (ex: `[CPF_REDACTED]`) antes que qualquer informação de usuário ou documento seja enviada para a API do Google Gemini.
-5. **Isolamento de Dados**: Os arquivos de PDF originais, o banco vetorial e os logs de métricas são mantidos localmente e estão configurados no `.gitignore` para nunca serem expostos no repositório público.
+2. **Rate Limiting por Sessão (Anti-DoS)**: Diferente de travas por IP comuns, o sistema limita o uso por **Sessão do Usuário**. Isso protege contra ataques de bypass de IP (VPN/Proxies) e garante estabilidade na infraestrutura, preservando seus créditos de API.
+3. **Proteção contra XSS (DOMPurify)**: No frontend, todas as respostas do modelo Gemini passam por uma sanitização rigorosa utilizando a biblioteca `DOMPurify`. Isso garante que eventuais scripts ou códigos maliciosos injetados nos PDFs ou gerados pela IA não sejam executados no navegador do usuário.
+4. **Blindagem de Prompt (Guardrails)**: O `system_prompt` possui diretrizes estritas de "blindagem" para impedir ataques de *Prompt Injection*. A IA está instruída a ignorar tentativas de desvio de conduta (ex: "ignore all previous instructions") e a nunca revelar suas instruções internas.
+5. **Governança de Dados e Redação de PII (LGPD)**: Camada de segurança que detecta padrões de dados sensíveis (PII) e os substitui por máscaras (ex: `[CPF_REDACTED]`) antes que qualquer informação de usuário ou documento seja enviada para a API do Google Gemini.
+6. **Modo de Economia de Tokens**: Lógica nativa que evita chamadas redundantes ao LLM. Se o sistema detecta alta confiança na busca vetorial ou encontra a resposta no cache semântico antes de expandir a pergunta, ele interrompe o fluxo de gastos, economizando até **66% de tokens** por interação.
+7. **Isolamento de Dados**: Os arquivos de PDF originais, o banco vetorial e os logs de métricas são mantidos localmente e estão configurados no `.gitignore` para nunca serem expostos no repositório público.
 
 ## Solucionando Problemas (FAQ)
 

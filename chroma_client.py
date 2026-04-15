@@ -134,13 +134,15 @@ class ChromaManager:
             print(f"Erro ao obter parent_content: {e}")
             return ""
 
-    def list_indexed_files(self):
-        """Retorna uma lista de nomes de arquivos únicos indexados no ChromaDB."""
+    def list_indexed_files(self, limit=10, offset=0):
+        """Retorna uma lista paginada de nomes de arquivos únicos indexados no ChromaDB."""
         if not self.collection:
             self.ensure_index_exists()
             
         try:
-            # Buscamos apenas os metadatas para economizar banda/memória
+            # Bug de Pentest: No futuro, para milhões de vetores, idealmente teríamos
+            # uma coleção separada de metadados de arquivos.
+            # Por hora, buscamos metadatas (que são pequenos) para extrair os únicos.
             results = self.collection.get(include=["metadatas"])
             filenames = set()
             if results and results.get("metadatas"):
@@ -148,7 +150,17 @@ class ChromaManager:
                     fname = meta.get("original_file")
                     if fname:
                         filenames.add(fname)
-            return sorted(list(filenames))
+            
+            sorted_files = sorted(list(filenames))
+            total_count = len(sorted_files)
+            
+            # Paginação na lista de nomes únicos
+            paginated = sorted_files[offset : offset + limit]
+            
+            return {
+                "files": paginated,
+                "total_count": total_count
+            }
         except Exception as e:
             print(f"Erro ao listar arquivos no Chroma: {e}")
-            return []
+            return {"files": [], "total_count": 0}
