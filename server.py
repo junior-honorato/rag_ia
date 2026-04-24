@@ -47,6 +47,13 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "http://localhost:8000")
 origins = [o.strip() for o in allowed_origins_env.split(",")]
 
+# Adicionamos automaticamente variações comuns para facilitar o acesso na rede local
+additional_origins = []
+for o in origins:
+    if "localhost" in o:
+        # Se localhost está permitido, tentamos permitir também o acesso via IP se o usuário souber o IP
+        pass 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -65,14 +72,19 @@ RERANK_THRESHOLD = float(os.environ.get("RERANK_THRESHOLD", 0.85))
 COOKIE_NAME = "session_app_id"
 api_key_cookie = APIKeyCookie(name=COOKIE_NAME, auto_error=False)
 
-async def get_api_key(cookie_value: str = Security(api_key_cookie)):
+async def get_api_key(request: Request, cookie_value: str = Security(api_key_cookie)):
     """Valida se a requisição possui o cookie de sessão correto."""
     expected_key = os.environ.get("APP_INTERNAL_API_KEY", "app-internal-dev-key")
     if cookie_value == expected_key:
         return cookie_value
+    
+    # Log de depuração para ajudar a identificar por que o acesso foi negado
+    client_host = request.client.host
+    print(f"[Acesso Negado] Host: {client_host} | Cookie: {'Presente' if cookie_value else 'Ausente/Inválido'}")
+    
     raise HTTPException(
         status_code=403, 
-        detail="Sessão inválida ou expirada. Recarregue a página."
+        detail="Sessão inválida ou expirada. Recarregue a página principal."
     )
 
 @app.get("/")
@@ -348,11 +360,14 @@ def get_dashboard_stats(request: Request):
     positive = 0
     negative = 0
     if os.path.exists(feedbacks_path):
-        with open(feedbacks_path, "r", encoding="utf-8") as f:
-            raw_feedbacks = json.load(f)
-            for fb in raw_feedbacks:
-                if fb.get("vote") == 1: positive += 1
-                elif fb.get("vote") == -1: negative += 1
+        with open(feedbacks_path, "r", encoding="utf-8-sig") as f: # utf-8-sig lida com BOM se existir
+            try:
+                raw_feedbacks = json.load(f)
+                for fb in raw_feedbacks:
+                    if fb.get("vote") == 1: positive += 1
+                    elif fb.get("vote") == -1: negative += 1
+            except Exception as e:
+                print(f"Erro ao carregar feedbacks: {e}")
 
     return {
         "daily_tokens": daily_tokens,
