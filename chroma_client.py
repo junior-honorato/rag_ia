@@ -14,7 +14,7 @@ class ChromaManager:
     def ensure_index_exists(self, dimension=768):
         """Verifica ou Cria a coleção no ChromaDB."""
         print(f"Inicializando Banco Vetorial Local ChromaDB ('{self.collection_name}')...")
-        # Configura espaço com distância Cosseno equivalente ao Pinecone
+        # Configura espaço com distância Cosseno para busca semântica eficiente.
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name,
             metadata={"hnsw:space": "cosine"}
