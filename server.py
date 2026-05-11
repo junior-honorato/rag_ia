@@ -47,16 +47,14 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "http://localhost:8000")
 origins = [o.strip() for o in allowed_origins_env.split(",")]
 
-# Adicionamos automaticamente variações comuns para facilitar o acesso na rede local
-additional_origins = []
-for o in origins:
-    if "localhost" in o:
-        # Se localhost está permitido, tentamos permitir também o acesso via IP se o usuário souber o IP
-        pass 
+# Regex para permitir qualquer IP de rede local (RFC 1918) e domínios .local
+# Isso resolve o problema de diferentes mapeamentos de rede e subnets na empresa.
+local_ip_regex = r"http://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|.*\.local)(:\d+)?"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=local_ip_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
