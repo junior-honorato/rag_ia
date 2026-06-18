@@ -10,6 +10,8 @@ venv.bak/
 # Project Specific
 chroma_db/
 *.pdf
+dist/
+
 
 # Python
 __pycache__/
